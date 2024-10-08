@@ -28,7 +28,8 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
-
+		tcb* thread_control_block = malloc(sizeof(tcb));
+		
 
     return 0;
 };

@@ -18,8 +18,17 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 typedef uint worker_t;
+
+typedef enum {
+    THREAD_NEW,
+    THREAD_RUNNABLE,
+    THREAD_BLOCKED,
+    THREAD_WAITING,
+    THREAD_TERMINATED
+} thread_status_t;
 
 typedef struct TCB {
 	/* add important states in a thread control block */
@@ -31,6 +40,15 @@ typedef struct TCB {
 	// And more ...
 
 	// YOUR CODE HERE
+	worker_t thread_id; 
+	thread_status_t thread_status; 
+	void *context;
+	void *stack_pointer;
+	size_t stack_size;
+	int priority;
+	time_t cpu_time;
+	worker_t parent_id;
+
 } tcb; 
 
 /* mutex struct definition */
@@ -47,13 +65,12 @@ typedef struct worker_mutex_t {
 #define MEDIUM_PRIO 2
 #define DEFAULT_PRIO 1
 #define LOW_PRIO 0
+#define MAX_SIZE 100
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
 // YOUR CODE HERE
-
-
 /* Function Declarations: */
 
 /* create a new thread */
