@@ -28,9 +28,17 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
-		tcb* thread_control_block = malloc(sizeof(tcb));
+		tcb* TCB = malloc(sizeof(TCB));
+		TCB->thread_id = thread;
+		TCB->priority = DEFAULT_PRIO;
+		TCB->thread_stack = initialize_stack((thread_stack *)malloc(sizeof(thread_stack)));
 		
+		(TCB->context)->uc_stack.ss_sp = TCB->thread_stack;
+    	(TCB->context)->uc_stack.ss_size = MAX_SIZE;
+    	(TCB->context)->uc_stack.ss_flags = 0;
 
+		TCB->thread_status = THREAD_NEW;
+		
     return 0;
 };
 

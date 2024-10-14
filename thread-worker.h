@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <ucontext.h>
 
 typedef uint worker_t;
 
@@ -42,13 +43,10 @@ typedef struct TCB {
 	// YOUR CODE HERE
 	worker_t thread_id; 
 	thread_status_t thread_status; 
-	void *context;
-	void *stack_pointer;
-	size_t stack_size;
+	ucontext_t *context;
+	thread_stack thread_stack;
 	int priority;
-	time_t cpu_time;
-	worker_t parent_id;
-
+	//worker_t parent_id;
 } tcb; 
 
 /* mutex struct definition */
@@ -65,13 +63,46 @@ typedef struct worker_mutex_t {
 #define MEDIUM_PRIO 2
 #define DEFAULT_PRIO 1
 #define LOW_PRIO 0
-#define MAX_SIZE 100
+#define MAX_SIZE 10000000
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
+typedef struct stack {
+	worker_t arr[MAX_SIZE];
+	worker_t top;
+} thread_stack;
+
+void initialize_stack(thread_stack *stack) {
+    stack->top = -1;  
+}
+
+int push(thread_stack *stack, worker_t value) {
+    if (is_full(stack)) {
+        return 0;
+    }
+    stack->arr[++(stack->top)] = value;  
+    return 1;
+}
+
+int pop(thread_stack *stack, worker_t *value) {
+    if (is_empty(stack)) {
+        return 0;
+    }
+    *value = stack->arr[(stack->top)--];  
+    return 1;
+}
+
+int peek(thread_stack *stack, worker_t *value) {
+    if (is_empty(stack)) {
+        return 0;
+    }
+    *value = stack->arr[stack->top];  
+    return 1;
+}
 
 // YOUR CODE HERE
 /* Function Declarations: */
+
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, void
