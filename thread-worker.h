@@ -110,7 +110,7 @@ int peek(thread_stack *stack, worker_t *value) {
     return 1;
 }
 
-void enqueue(struct Queue* queue, int value) {
+void enqueue(struct Queue* queue, worker_t value) {
     struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
     newNode->data = value;
     newNode->next = NULL;

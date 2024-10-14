@@ -16,7 +16,7 @@ double avg_resp_time=0;
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
 ucontext_t schedling_context, main_context, current_context;
-
+Queue* runqueue = (Queue *)malloc(sizeof(Queue));
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
@@ -29,7 +29,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
-		tcb* TCB = (tcb *) malloc(sizeof(TCB));
+		tcb* TCB = (tcb *) malloc(sizeof(tcb));
 		TCB->thread_id = thread;
 		TCB->priority = DEFAULT_PRIO;
 		TCB->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
@@ -43,7 +43,8 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
         makecontext(TCB->context, function, 1, arg);	
 
 		TCB->thread_status = THREAD_NEW;
-		
+		enqueue(runqueue, TCB->thread_id);
+
     return 0;
 };
 
