@@ -44,7 +44,7 @@ typedef struct TCB {
 	worker_t thread_id; 
 	thread_status_t thread_status; 
 	ucontext_t *context;
-	thread_stack thread_stack;
+	thread_stack *thread_stack;
 	int priority;
 	//worker_t parent_id;
 } tcb; 
@@ -72,9 +72,19 @@ typedef struct stack {
 	worker_t top;
 } thread_stack;
 
-void initialize_stack(thread_stack *stack) {
-    stack->top = -1;  
-}
+
+struct Node {
+    worker_t data;
+    struct Node* next;
+};
+
+struct Queue {
+    struct Node *front, *rear;
+};
+
+
+// YOUR CODE HERE
+/* Function Declarations: */
 
 int push(thread_stack *stack, worker_t value) {
     if (is_full(stack)) {
@@ -100,9 +110,29 @@ int peek(thread_stack *stack, worker_t *value) {
     return 1;
 }
 
-// YOUR CODE HERE
-/* Function Declarations: */
+void enqueue(struct Queue* queue, int value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->next = NULL;
+    if (queue->rear == NULL) {
+        queue->front = queue->rear = newNode;
+        return;
+    }
+    queue->rear->next = newNode;
+    queue->rear = newNode;
+}
 
+worker_t dequeue(struct Queue* queue) {
+    if (queue->front == NULL)
+        return -1;
+    struct Node* temp = queue->front;
+    worker_t thread = temp->data;
+    queue->front = queue->front->next;
+    if (queue->front == NULL)
+        queue->rear = NULL;
+    free(temp);
+    return value;
+}
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, void

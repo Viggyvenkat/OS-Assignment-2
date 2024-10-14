@@ -15,6 +15,7 @@ double avg_resp_time=0;
 
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
+ucontext_t schedling_context, main_context, current_context;
 
 
 /* create a new thread */
@@ -28,14 +29,18 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
-		tcb* TCB = malloc(sizeof(TCB));
+		tcb* TCB = (tcb *) malloc(sizeof(TCB));
 		TCB->thread_id = thread;
 		TCB->priority = DEFAULT_PRIO;
-		TCB->thread_stack = initialize_stack((thread_stack *)malloc(sizeof(thread_stack)));
-		
-		(TCB->context)->uc_stack.ss_sp = TCB->thread_stack;
-    	(TCB->context)->uc_stack.ss_size = MAX_SIZE;
-    	(TCB->context)->uc_stack.ss_flags = 0;
+		TCB->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
+
+		getcontext(TCB->context);
+		TCB->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
+		TCB->context->uc_stack.ss_size = MAX_SIZE;
+		TCB->context->uc_stack.ss_flags = 0;
+		TCB->context->uc_link = NULL; //scheduling context
+
+        makecontext(TCB->context, function, 1, arg);	
 
 		TCB->thread_status = THREAD_NEW;
 		
@@ -64,6 +69,7 @@ int worker_yield() {
 	// - change worker thread's state from Running to Ready
 	// - save context of this thread to its thread control block
 	// - switch from thread context to scheduler context
+	
 
 	// YOUR CODE HERE
 	
