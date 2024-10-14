@@ -16,7 +16,7 @@ double avg_resp_time=0;
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
 ucontext_t schedling_context, main_context, current_context;
-Queue* runqueue = (Queue *)malloc(sizeof(Queue));
+Queue* runqueue = (Queue *) malloc(sizeof(Queue));
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 

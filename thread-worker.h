@@ -52,8 +52,11 @@ typedef struct TCB {
 /* mutex struct definition */
 typedef struct worker_mutex_t {
 	/* add something here */
-
 	// YOUR CODE HERE
+
+    int locked; // 1 is locked, 0 is not locked
+    tcb* owner; 
+    tcb* blocked_list; //all threads that are blocked get added here
 } worker_mutex_t;
 
 /* Priority definitions */
@@ -73,14 +76,14 @@ typedef struct stack {
 } thread_stack;
 
 
-struct Node {
+typedef struct Node {
     worker_t data;
     struct Node* next;
-};
+}Node;
 
-struct Queue {
+typedef struct Queue {
     struct Node *front, *rear;
-};
+}Queue;
 
 
 // YOUR CODE HERE
@@ -131,7 +134,7 @@ worker_t dequeue(struct Queue* queue) {
     if (queue->front == NULL)
         queue->rear = NULL;
     free(temp);
-    return value;
+    return thread;
 }
 
 /* create a new thread */
