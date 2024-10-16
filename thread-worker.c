@@ -5,6 +5,15 @@
 // iLab Server:
 
 #include "thread-worker.h"
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <ucontext.h>
+#include <sys/time.h>
+#include <signal.h>
 
 //Global counter for total context switches and 
 //average turn around and response time
@@ -37,21 +46,17 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			scheduling_context.uc_stack.ss_sp = malloc(MAX_SIZE); 
 			scheduling_context.uc_stack.ss_size = MAX_SIZE;
 			scheduling_context.uc_stack.ss_flags = 0;
-			scheduling_context.uc_link = &scheduling_context;
+			scheduling_context.uc_link = NULL;
 
-			timer = malloc(sizeof(struct timeinterval));
-			struct sigaction sa;
-			memset (&sa, 0, sizeof (sa));
+			memset (&sa, 0, sizeof(sa));
 			sa.sa_handler = &ring;
 			sigaction (SIGPROF, &sa, NULL);
 
-			timer.it_interval.tv_usec = 0; 
-			timer.it_interval.tv_sec = 0;
-
 			timer.it_value.tv_usec = 0;
 			timer.it_value.tv_sec = 1;
-
 			setitimer(ITIMER_PROF, &timer, NULL);
+
+			scheduling_init = 1;
 		}
 	    runqueue = (Queue *) malloc(sizeof(Queue));
 		tcb* TCB = (tcb *) malloc(sizeof(tcb));
