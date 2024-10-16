@@ -89,53 +89,13 @@ typedef struct Queue {
 // YOUR CODE HERE
 /* Function Declarations: */
 
-int push(thread_stack *stack, worker_t value) {
-    if (is_full(stack)) {
-        return 0;
-    }
-    stack->arr[++(stack->top)] = value;  
-    return 1;
-}
+int push(thread_stack *stack, worker_t value);
+int pop(thread_stack *stack, worker_t *value);
+int peek(thread_stack *stack, worker_t *value);
+void enqueue(struct Queue* queue, worker_t value);
+worker_t dequeue(struct Queue* queue);
 
-int pop(thread_stack *stack, worker_t *value) {
-    if (is_empty(stack)) {
-        return 0;
-    }
-    *value = stack->arr[(stack->top)--];  
-    return 1;
-}
 
-int peek(thread_stack *stack, worker_t *value) {
-    if (is_empty(stack)) {
-        return 0;
-    }
-    *value = stack->arr[stack->top];  
-    return 1;
-}
-
-void enqueue(struct Queue* queue, worker_t value) {
-    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
-    newNode->data = value;
-    newNode->next = NULL;
-    if (queue->rear == NULL) {
-        queue->front = queue->rear = newNode;
-        return;
-    }
-    queue->rear->next = newNode;
-    queue->rear = newNode;
-}
-
-worker_t dequeue(struct Queue* queue) {
-    if (queue->front == NULL)
-        return -1;
-    struct Node* temp = queue->front;
-    worker_t thread = temp->data;
-    queue->front = queue->front->next;
-    if (queue->front == NULL)
-        queue->rear = NULL;
-    free(temp);
-    return thread;
-}
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, void

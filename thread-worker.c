@@ -15,8 +15,10 @@ double avg_resp_time=0;
 
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
-ucontext_t schedling_context, main_context, current_context;
-Queue* runqueue = (Queue *) malloc(sizeof(Queue));
+ucontext_t scheduling_context, main_context, current_context;
+Queue *runqueue;
+struct itimerval timer;
+struct sigaction sa;
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
@@ -29,6 +31,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
+	    runqueue = (Queue *) malloc(sizeof(Queue));
 		tcb* TCB = (tcb *) malloc(sizeof(tcb));
 		TCB->thread_id = thread;
 		TCB->priority = DEFAULT_PRIO;
@@ -38,7 +41,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 		TCB->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
 		TCB->context->uc_stack.ss_size = MAX_SIZE;
 		TCB->context->uc_stack.ss_flags = 0;
-		TCB->context->uc_link = NULL; //scheduling context
+		TCB->context->uc_link = &scheduling_context; //scheduling context
 
         makecontext(TCB->context, function, 1, arg);	
 
@@ -188,4 +191,53 @@ void print_app_stats(void) {
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
+
+
+int push(thread_stack *stack, worker_t value) {
+    if (is_full(stack)) {
+        return 0;
+    }
+    stack->arr[++(stack->top)] = value;  
+    return 1;
+}
+
+int pop(thread_stack *stack, worker_t *value) {
+    if (is_empty(stack)) {
+        return 0;
+    }
+    *value = stack->arr[(stack->top)--];  
+    return 1;
+}
+
+int peek(thread_stack *stack, worker_t *value) {
+    if (is_empty(stack)) {
+        return 0;
+    }
+    *value = stack->arr[stack->top];  
+    return 1;
+}
+
+void enqueue(struct Queue* queue, worker_t value) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = value;
+    newNode->next = NULL;
+    if (queue->rear == NULL) {
+        queue->front = queue->rear = newNode;
+        return;
+    }
+    queue->rear->next = newNode;
+    queue->rear = newNode;
+}
+
+worker_t dequeue(struct Queue* queue) {
+    if (queue->front == NULL)
+        return -1;
+    struct Node* temp = queue->front;
+    worker_t thread = temp->data;
+    queue->front = queue->front->next;
+    if (queue->front == NULL)
+        queue->rear = NULL;
+    free(temp);
+    return thread;
+}
 
