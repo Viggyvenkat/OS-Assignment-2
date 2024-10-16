@@ -57,17 +57,17 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			timer.it_value.tv_sec = 1;
 			setitimer(ITIMER_PROF, &timer, NULL);
 
-			main_thread = (tcb **) malloc(sizeof(main_thread));
+			main_thread = (tcb *) malloc(sizeof(main_thread));
 			getcontext(main_thread->context);
 			main_thread->context = &main_context;
 			main_thread->context->uc_link = &scheduling_context;
 			main_thread->thread_id = 0;
 			cur_thread = main_thread;
 			swapcontext(main_thread->context, &scheduling_context);
-			
+
+			runqueue = (Queue *) malloc(sizeof(Queue));
 			scheduling_init = 1;
 		}
-	    runqueue = (Queue *) malloc(sizeof(Queue));
 		tcb* worker_thread = (tcb *) malloc(sizeof(tcb));
 		worker_thread->thread_id = thread;
 		worker_thread->priority = DEFAULT_PRIO;
@@ -78,7 +78,6 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 		worker_thread->context->uc_stack.ss_size = MAX_SIZE;
 		worker_thread->context->uc_stack.ss_flags = 0;
 		worker_thread->context->uc_link = &scheduling_context;
-
         makecontext(worker_thread->context, function, 1, arg);	
 
 		worker_thread->thread_status = THREAD_NEW;
@@ -109,9 +108,11 @@ int worker_yield() {
 	// - change worker thread's state from Running to Ready
 	// - save context of this thread to its thread control block
 	// - switch from thread context to scheduler context
-	
+
 
 	// YOUR CODE HERE
+	cur_thread->thread_status = THREAD_RUNNABLE;
+	swapcontext(cur_thread->context, &scheduling_context);
 	
 	return 0;
 };
@@ -120,7 +121,8 @@ int worker_yield() {
 void worker_exit(void *value_ptr) {
 	// - de-allocate any dynamic memory created when starting this thread
 	// YOUR CODE HERE
-	free(value_ptr);
+	cur_thread->thread_status = THREAD_TERMINATED;
+	setcontext(&scheduling_context);
 };
 
 
