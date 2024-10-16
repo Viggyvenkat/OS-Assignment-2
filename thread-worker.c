@@ -16,9 +16,11 @@ double avg_resp_time=0;
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
 ucontext_t scheduling_context, main_context, current_context;
-Queue *runqueue;
+Queue* runqueue;
 struct itimerval timer;
 struct sigaction sa;
+tcb** main_thread, cur_thread;
+int scheduling_init= 0;
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
@@ -31,6 +33,26 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
+	   	if (scheduling_init = 0){
+			scheduling_context.uc_stack.ss_sp = malloc(MAX_SIZE); 
+			scheduling_context.uc_stack.ss_size = MAX_SIZE;
+			scheduling_context.uc_stack.ss_flags = 0;
+			scheduling_context.uc_link = &scheduling_context;
+
+			timer = malloc(sizeof(struct timeinterval));
+			struct sigaction sa;
+			memset (&sa, 0, sizeof (sa));
+			sa.sa_handler = &ring;
+			sigaction (SIGPROF, &sa, NULL);
+
+			timer.it_interval.tv_usec = 0; 
+			timer.it_interval.tv_sec = 0;
+
+			timer.it_value.tv_usec = 0;
+			timer.it_value.tv_sec = 1;
+
+			setitimer(ITIMER_PROF, &timer, NULL);
+		}
 	    runqueue = (Queue *) malloc(sizeof(Queue));
 		tcb* TCB = (tcb *) malloc(sizeof(tcb));
 		TCB->thread_id = thread;
@@ -41,7 +63,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 		TCB->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
 		TCB->context->uc_stack.ss_size = MAX_SIZE;
 		TCB->context->uc_stack.ss_flags = 0;
-		TCB->context->uc_link = &scheduling_context; //scheduling context
+		TCB->context->uc_link = &scheduling_context;
 
         makecontext(TCB->context, function, 1, arg);	
 
@@ -241,3 +263,6 @@ worker_t dequeue(struct Queue* queue) {
     return thread;
 }
 
+void ring(int signum){
+	//We have to add something here Divit
+}
