@@ -28,7 +28,8 @@ ucontext_t scheduling_context, main_context, current_context;
 Queue* runqueue;
 struct itimerval timer;
 struct sigaction sa;
-tcb** main_thread, cur_thread;
+tcb* main_thread;
+tcb* cur_thread;
 int scheduling_init= 0;
 
 /* create a new thread */
@@ -56,24 +57,32 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			timer.it_value.tv_sec = 1;
 			setitimer(ITIMER_PROF, &timer, NULL);
 
+			main_thread = (tcb **) malloc(sizeof(main_thread));
+			getcontext(main_thread->context);
+			main_thread->context = &main_context;
+			main_thread->context->uc_link = &scheduling_context;
+			main_thread->thread_id = 0;
+			cur_thread = main_thread;
+			swapcontext(main_thread->context, &scheduling_context);
+			
 			scheduling_init = 1;
 		}
 	    runqueue = (Queue *) malloc(sizeof(Queue));
-		tcb* TCB = (tcb *) malloc(sizeof(tcb));
-		TCB->thread_id = thread;
-		TCB->priority = DEFAULT_PRIO;
-		TCB->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
+		tcb* worker_thread = (tcb *) malloc(sizeof(tcb));
+		worker_thread->thread_id = thread;
+		worker_thread->priority = DEFAULT_PRIO;
+		worker_thread->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
 
-		getcontext(TCB->context);
-		TCB->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
-		TCB->context->uc_stack.ss_size = MAX_SIZE;
-		TCB->context->uc_stack.ss_flags = 0;
-		TCB->context->uc_link = &scheduling_context;
+		getcontext(worker_thread->context);
+		worker_thread->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
+		worker_thread->context->uc_stack.ss_size = MAX_SIZE;
+		worker_thread->context->uc_stack.ss_flags = 0;
+		worker_thread->context->uc_link = &scheduling_context;
 
-        makecontext(TCB->context, function, 1, arg);	
+        makecontext(worker_thread->context, function, 1, arg);	
 
-		TCB->thread_status = THREAD_NEW;
-		enqueue(runqueue, TCB->thread_id);
+		worker_thread->thread_status = THREAD_NEW;
+		enqueue(runqueue, worker_thread->thread_id);
 
     return 0;
 };
@@ -110,8 +119,8 @@ int worker_yield() {
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
 	// - de-allocate any dynamic memory created when starting this thread
-
 	// YOUR CODE HERE
+	free(value_ptr);
 };
 
 
