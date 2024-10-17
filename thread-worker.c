@@ -52,9 +52,12 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			memset (&sa, 0, sizeof(sa));
 			sa.sa_handler = &ring;
 			sigaction (SIGPROF, &sa, NULL);
-
+			
 			timer.it_value.tv_usec = 0;
-			timer.it_value.tv_sec = 1;
+			timer.it_value.tv_sec = 1000;
+			//Addinf interval time quantum
+			timer.it_interval.tv_sec = 0;
+			timer.it_interval.tv_usec = 10000;
 			setitimer(ITIMER_PROF, &timer, NULL);
 
 			main_thread = (tcb *) malloc(sizeof(main_thread));
@@ -281,4 +284,14 @@ worker_t dequeue(struct Queue* queue) {
 
 void ring(int signum){
 	//We have to add something here Divit
+	//Goal is to save the state of cur_thread and switch to the scheduler
+	//Incrimenting total context switches
+	tot_cntx_switches++;
+
+	//Switch from current thread context to scheduler context 
+	if (cur_thread && swapcontext(cur_thread -> context, &scheduling_context) == -1){
+		//if swapcontext fails
+		perror("swapcontext");
+		exit(EXIT_FAILURE);
+	}
 }
