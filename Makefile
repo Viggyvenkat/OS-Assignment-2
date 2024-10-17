@@ -11,6 +11,10 @@ thread-worker.a: thread-worker.o
 
 thread-worker.o: thread-worker.h
 
+test: test.c thread-worker.o
+	gcc -o test test.c thread-worker.o -lpthread
+
+
 ifeq ($(SCHED), PSJF)
 	$(CC) -pthread $(CFLAGS) -DPSJF thread-worker.c
 else ifeq ($(SCHED), MLFQ)

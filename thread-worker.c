@@ -13,6 +13,7 @@
 #include <time.h>
 #include <ucontext.h>
 #include <sys/time.h>
+#include <string.h>
 #include <signal.h>
 
 //Global counter for total context switches and 
@@ -75,6 +76,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 		worker_thread->thread_id = thread;
 		worker_thread->priority = DEFAULT_PRIO;
 		worker_thread->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
+		worker_thread->thread_stack->top = -1;
 
 		getcontext(worker_thread->context);
 		worker_thread->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
@@ -286,6 +288,9 @@ void ring(int signum){
 	//We have to add something here Divit
 	//Goal is to save the state of cur_thread and switch to the scheduler
 	//Incrimenting total context switches
+
+	//debug statement
+	printf("Timer interrupt. Switching context \n");
 	tot_cntx_switches++;
 
 	//Switch from current thread context to scheduler context 

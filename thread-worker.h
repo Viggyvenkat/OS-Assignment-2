@@ -94,6 +94,7 @@ int pop(thread_stack *stack, worker_t *value);
 int peek(thread_stack *stack, worker_t *value);
 void enqueue(struct Queue* queue, worker_t value);
 worker_t dequeue(struct Queue* queue);
+void ring(int signum);
 
 
 
