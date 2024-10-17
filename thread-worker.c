@@ -33,6 +33,16 @@ tcb* main_thread;
 tcb* cur_thread;
 int scheduling_init= 0;
 
+//Wrapper function to match signature for makecontetx (got an error when trying to Make)
+void thread_start_wrapper() {
+   
+    if (cur_thread && cur_thread->function) {
+        cur_thread->function(cur_thread->arg);
+    }
+   
+    worker_exit(NULL);
+}
+
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
                       void *(*function)(void*), void * arg) {
@@ -44,7 +54,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
-	   	if (scheduling_init = 0){
+	   	if (scheduling_init == 0){
 			scheduling_context.uc_stack.ss_sp = malloc(MAX_SIZE); 
 			scheduling_context.uc_stack.ss_size = MAX_SIZE;
 			scheduling_context.uc_stack.ss_flags = 0;
@@ -55,13 +65,13 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			sigaction (SIGPROF, &sa, NULL);
 			
 			timer.it_value.tv_usec = 0;
-			timer.it_value.tv_sec = 1000;
+			timer.it_value.tv_sec = 1;
 			//Addinf interval time quantum
 			timer.it_interval.tv_sec = 0;
-			timer.it_interval.tv_usec = 10000;
+			timer.it_interval.tv_usec = 1;
 			setitimer(ITIMER_PROF, &timer, NULL);
 
-			main_thread = (tcb *) malloc(sizeof(main_thread));
+			main_thread = (tcb *) malloc(sizeof(tcb));
 			getcontext(main_thread->context);
 			main_thread->context = &main_context;
 			main_thread->context->uc_link = &scheduling_context;
@@ -73,17 +83,25 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			scheduling_init = 1;
 		}
 		tcb* worker_thread = (tcb *) malloc(sizeof(tcb));
-		worker_thread->thread_id = thread;
+		worker_thread->thread_id = *thread;
 		worker_thread->priority = DEFAULT_PRIO;
 		worker_thread->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
-		worker_thread->thread_stack->top = -1;
+		if (worker_thread -> thread_stack != NULL){
+			worker_thread -> thread_stack -> top = -1;
+		}
+
+		//set the function and argument passed to this thread:
+		worker_thread->function = (void (*)(void *)) function;
+		worker_thread->arg = arg; //used by thread_start_wrapper
+		
 
 		getcontext(worker_thread->context);
 		worker_thread->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
 		worker_thread->context->uc_stack.ss_size = MAX_SIZE;
 		worker_thread->context->uc_stack.ss_flags = 0;
 		worker_thread->context->uc_link = &scheduling_context;
-        makecontext(worker_thread->context, function, 1, arg);	
+		//Divit: Modified this cause I was getting an error when testing
+        makecontext(worker_thread->context, (void (*)(void)) thread_start_wrapper, 0);
 
 		worker_thread->thread_status = THREAD_NEW;
 		enqueue(runqueue, worker_thread->thread_id);
@@ -147,7 +165,12 @@ int worker_mutex_init(worker_mutex_t *mutex,
 	//- initialize data structures for this mutex
 
 	// YOUR CODE HERE
-	return 0;
+	//initialize the mutex state
+	mutex->locked = 0; // 0 = unlocked (not held by a thread)
+    mutex->owner = NULL; //stores TCB of thread holding the mutex
+    mutex->blocked_list = (Queue *)malloc(sizeof(Queue)); //Queue to manage threads waiting for mutex
+    mutex->blocked_list->front = mutex->blocked_list->rear = NULL;
+    return 0;
 };
 
 /* aquire the mutex lock */
@@ -159,6 +182,20 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
         // context switch to the scheduler thread
 
         // YOUR CODE HERE
+		// Atomic check if the mutex is free using atomic op
+		if (__sync_lock_test_and_set(&(mutex->locked), 1) == 0) {
+			// Mutex is free; current thread acquires it
+			mutex->owner = cur_thread;
+			return 0;
+		}
+
+		// Mutex is already locked; block the current thread
+		cur_thread->thread_status = THREAD_BLOCKED;
+		enqueue(mutex->blocked_list, cur_thread->thread_id);
+
+		// Switch context to the scheduler
+		swapcontext(cur_thread->context, &scheduling_context);
+
         return 0;
 };
 
@@ -169,6 +206,22 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
 	// so that they could compete for mutex later.
 
 	// YOUR CODE HERE
+	if (mutex->owner != cur_thread) {
+        return -1; // Error: Mutex can only be unlocked by the owner
+    }
+
+    // Release the mutex
+    mutex->locked = 0;
+    mutex->owner = NULL;
+
+    // If there are any threads waiting on the mutex, wake one up
+    worker_t next_thread_id = dequeue(mutex->blocked_list);
+    if (next_thread_id != -1) {
+        // Find the thread TCB 
+        tcb* next_thread = /* locate the TCB of next_thread_id */;
+        next_thread->thread_status = THREAD_RUNNABLE;
+        enqueue(runqueue, next_thread->thread_id);
+    }
 	return 0;
 };
 
@@ -176,6 +229,7 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex) {
 	// - de-allocate dynamic memory created in worker_mutex_init
+	free(mutex->blocked_list);
 
 	return 0;
 };
@@ -234,6 +288,15 @@ void print_app_stats(void) {
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
+
+int is_full(thread_stack *stack) {
+    return stack->top == (MAX_SIZE - 1);
+}
+
+int is_empty(thread_stack *stack) {
+    return stack->top == -1;
+}
+
 
 
 int push(thread_stack *stack, worker_t value) {

@@ -9,6 +9,8 @@
 
 #define _GNU_SOURCE
 
+#define MAX_SIZE 10000000 
+
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_WORKERS macro */
 #define USE_WORKERS 1
 
@@ -31,6 +33,13 @@ typedef enum {
     THREAD_TERMINATED
 } thread_status_t;
 
+
+//thread stack needs to be above TCB
+typedef struct stack {
+	worker_t arr[MAX_SIZE];
+	worker_t top;
+} thread_stack;
+
 typedef struct TCB {
 	/* add important states in a thread control block */
 	// thread Id
@@ -46,6 +55,10 @@ typedef struct TCB {
 	ucontext_t *context;
 	thread_stack *thread_stack;
 	int priority;
+	//Function ptr for task
+	void (*function)(void *);
+	//Arg for thread's function
+	void *arg;
 	//worker_t parent_id;
 } tcb; 
 
@@ -66,14 +79,11 @@ typedef struct worker_mutex_t {
 #define MEDIUM_PRIO 2
 #define DEFAULT_PRIO 1
 #define LOW_PRIO 0
-#define MAX_SIZE 10000000
+//moving this up cause it's not getting recognized
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
-typedef struct stack {
-	worker_t arr[MAX_SIZE];
-	worker_t top;
-} thread_stack;
+
 
 
 typedef struct Node {
@@ -89,12 +99,25 @@ typedef struct Queue {
 // YOUR CODE HERE
 /* Function Declarations: */
 
-int push(thread_stack *stack, worker_t value);
-int pop(thread_stack *stack, worker_t *value);
-int peek(thread_stack *stack, worker_t *value);
-void enqueue(struct Queue* queue, worker_t value);
-worker_t dequeue(struct Queue* queue);
-void ring(int signum);
+extern int push(thread_stack *stack, worker_t value);
+extern int pop(thread_stack *stack, worker_t *value);
+extern int peek(thread_stack *stack, worker_t *value);
+extern void enqueue(struct Queue* queue, worker_t value);
+extern worker_t dequeue(struct Queue* queue);
+extern void ring(int signum);
+extern int is_full(thread_stack *stack);
+extern int is_empty(thread_stack *stack);
+
+extern long tot_cntx_switches;
+extern double avg_turn_time;
+extern double avg_resp_time;
+extern ucontext_t scheduling_context, main_context, current_context;
+extern Queue* runqueue;
+extern struct itimerval timer;
+extern struct sigaction sa;
+extern tcb* main_thread;
+extern tcb* cur_thread;
+extern int scheduling_init;
 
 
 
