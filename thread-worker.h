@@ -10,6 +10,17 @@
 #define _GNU_SOURCE
 
 #define MAX_SIZE 10000000
+#define DEFAULT_RUNTIME 10 //10 miliseconds per thread (time slice per thread)
+
+
+
+//Thread States
+#define READY 0
+#define SCHEDULED 1
+#define BLOCKED 2
+#define TERMINATED 3
+#define WAITING 4
+
  
 
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_WORKERS macro */
@@ -60,6 +71,8 @@ typedef struct TCB {
 	void (*function)(void *);
 	//Arg for thread's function
 	void *arg;
+	//needed for psjf
+	int remaining_time;
 	//worker_t parent_id;
 } tcb; 
 
@@ -110,7 +123,10 @@ extern void enqueue(struct Queue* queue, tcb* new_thread);
 extern tcb* dequeue(struct Queue* queue);
 extern void ring(int signum);
 extern int is_full(thread_stack *stack);
-extern int is_empty(thread_stack *stack);
+extern int is_empty(Queue* queue);
+//needed a new one for pop()
+extern int is_empty_stack(thread_stack *stack);
+
 
 extern long tot_cntx_switches;
 extern double avg_turn_time;
@@ -150,6 +166,9 @@ int worker_mutex_unlock(worker_mutex_t *mutex);
 
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex);
+
+int worker_setschedprio(worker_t thread, int prio);
+
 
 
 /* Function to print global statistics. Do not modify this function.*/
