@@ -1,5 +1,6 @@
 // File:	thread-worker.c
 
+
 // List all group member's name:
 // username of iLab:
 // iLab Server:
@@ -26,7 +27,7 @@ double avg_resp_time=0;
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
 ucontext_t scheduling_context, main_context, current_context;
-Queue* runqueue;
+Queue* runqueue = NULL;
 struct itimerval timer;
 struct sigaction sa;
 tcb* main_thread;
@@ -42,6 +43,8 @@ void thread_start_wrapper() {
    
     worker_exit(NULL);
 }
+
+//
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
@@ -72,39 +75,39 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 			setitimer(ITIMER_PROF, &timer, NULL);
 
 			main_thread = (tcb *) malloc(sizeof(tcb));
-			getcontext(main_thread->context);
-			main_thread->context = &main_context;
-			main_thread->context->uc_link = &scheduling_context;
+			getcontext(&(main_thread->context));
+			main_thread->context = main_context;
+			main_thread->context.uc_link = &scheduling_context;
 			main_thread->thread_id = 0;
 			cur_thread = main_thread;
-			swapcontext(main_thread->context, &scheduling_context);
-
+			swapcontext(&(main_thread->context), &scheduling_context);
+			
 			runqueue = (Queue *) malloc(sizeof(Queue));
 			scheduling_init = 1;
 		}
-		tcb* worker_thread = (tcb *) malloc(sizeof(tcb));
-		worker_thread->thread_id = *thread;
-		worker_thread->priority = DEFAULT_PRIO;
-		worker_thread->thread_stack = (thread_stack *) malloc(sizeof(thread_stack));
-		if (worker_thread -> thread_stack != NULL){
-			worker_thread -> thread_stack -> top = -1;
+		tcb* new_thread = (tcb*) malloc(sizeof(tcb));
+		new_thread->thread_id = *thread;
+		new_thread->priority = DEFAULT_PRIO;
+		new_thread->thread_stack = (thread_stack*) malloc(sizeof(thread_stack));
+		if (new_thread->thread_stack != NULL) {
+			new_thread->thread_stack->top = -1;
 		}
 
-		//set the function and argument passed to this thread:
-		worker_thread->function = (void (*)(void *)) function;
-		worker_thread->arg = arg; //used by thread_start_wrapper
+		// Set the function and argument passed to this thread
+		new_thread->function = (void (*)(void *)) function;
+		new_thread->arg = arg; // Used by thread_start_wrapper
+
+		getcontext(&(new_thread->context));
+		new_thread->context.uc_stack.ss_sp = malloc(MAX_SIZE); 
+		new_thread->context.uc_stack.ss_size = MAX_SIZE;
+		new_thread->context.uc_flags = 0;
+		new_thread->context.uc_link = &scheduling_context;
 		
+		// Set up the context for the new thread
+		makecontext(&new_thread->context, (void (*)(void)) thread_start_wrapper, 0);
 
-		getcontext(worker_thread->context);
-		worker_thread->context->uc_stack.ss_sp = malloc(MAX_SIZE); 
-		worker_thread->context->uc_stack.ss_size = MAX_SIZE;
-		worker_thread->context->uc_stack.ss_flags = 0;
-		worker_thread->context->uc_link = &scheduling_context;
-		//Divit: Modified this cause I was getting an error when testing
-        makecontext(worker_thread->context, (void (*)(void)) thread_start_wrapper, 0);
-
-		worker_thread->thread_status = THREAD_NEW;
-		enqueue(runqueue, worker_thread->thread_id);
+		new_thread->thread_status = THREAD_NEW;
+		enqueue(runqueue, new_thread);
 
     return 0;
 };
@@ -135,7 +138,9 @@ int worker_yield() {
 
 	// YOUR CODE HERE
 	cur_thread->thread_status = THREAD_RUNNABLE;
-	swapcontext(cur_thread->context, &scheduling_context);
+	//enqueue the current thread back to the runqueue
+	enqueue(runqueue, cur_thread);
+	swapcontext(&(cur_thread->context), &scheduling_context);
 	
 	return 0;
 };
@@ -168,8 +173,9 @@ int worker_mutex_init(worker_mutex_t *mutex,
 	//initialize the mutex state
 	mutex->locked = 0; // 0 = unlocked (not held by a thread)
     mutex->owner = NULL; //stores TCB of thread holding the mutex
-    mutex->blocked_list = (Queue *)malloc(sizeof(Queue)); //Queue to manage threads waiting for mutex
-    mutex->blocked_list->front = mutex->blocked_list->rear = NULL;
+    mutex->blocked_list = (Queue*)malloc(sizeof(Queue)); //Queue to manage threads waiting for mutex
+    mutex->blocked_list->front = NULL;
+	mutex->blocked_list->rear = NULL;
     return 0;
 };
 
@@ -191,10 +197,10 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
 
 		// Mutex is already locked; block the current thread
 		cur_thread->thread_status = THREAD_BLOCKED;
-		enqueue(mutex->blocked_list, cur_thread->thread_id);
+		enqueue(mutex->blocked_list, cur_thread);
 
 		// Switch context to the scheduler
-		swapcontext(cur_thread->context, &scheduling_context);
+		swapcontext(&cur_thread->context, &scheduling_context);
 
         return 0;
 };
@@ -215,12 +221,11 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
     mutex->owner = NULL;
 
     // If there are any threads waiting on the mutex, wake one up
-    worker_t next_thread_id = dequeue(mutex->blocked_list);
-    if (next_thread_id != -1) {
-        // Find the thread TCB 
-        tcb* next_thread = /* locate the TCB of next_thread_id */;
+    tcb* next_thread = dequeue(mutex->blocked_list);
+    if (next_thread != NULL) {
+        
         next_thread->thread_status = THREAD_RUNNABLE;
-        enqueue(runqueue, next_thread->thread_id);
+        enqueue(runqueue, next_thread);
     }
 	return 0;
 };
@@ -248,6 +253,23 @@ static void schedule() {
 	// 		sched_mlfq();
 
 	// YOUR CODE HERE
+	// Check if the run queue is empty
+    if (runqueue == NULL || runqueue->front == NULL) {
+        printf("No threads to schedule.\n");
+        return;
+    }
+
+    // Dequeue the next thread from the run queue
+    tcb* next_thread = dequeue(runqueue);
+
+    if (next_thread != NULL) {
+        // Set the current thread to the next thread
+        cur_thread = next_thread;
+        cur_thread->thread_status = THREAD_RUNNABLE;
+
+        // Swap context from the scheduler to the selected thread
+        swapcontext(&scheduling_context, &cur_thread->context);
+	}
 
 // - schedule policy
 #ifndef MLFQ
@@ -323,9 +345,9 @@ int peek(thread_stack *stack, worker_t *value) {
     return 1;
 }
 
-void enqueue(struct Queue* queue, worker_t value) {
+void enqueue(struct Queue* queue, tcb* new_thread) {
     struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
-    newNode->data = value;
+    newNode->data = new_thread;
     newNode->next = NULL;
     if (queue->rear == NULL) {
         queue->front = queue->rear = newNode;
@@ -335,14 +357,18 @@ void enqueue(struct Queue* queue, worker_t value) {
     queue->rear = newNode;
 }
 
-worker_t dequeue(struct Queue* queue) {
+tcb* dequeue(struct Queue* queue) {
     if (queue->front == NULL)
-        return -1;
+        return NULL;
+
     struct Node* temp = queue->front;
-    worker_t thread = temp->data;
+    tcb* thread = temp->data;
     queue->front = queue->front->next;
-    if (queue->front == NULL)
+
+    if (queue->front == NULL){
         queue->rear = NULL;
+	}
+
     free(temp);
     return thread;
 }
@@ -357,7 +383,7 @@ void ring(int signum){
 	tot_cntx_switches++;
 
 	//Switch from current thread context to scheduler context 
-	if (cur_thread && swapcontext(cur_thread -> context, &scheduling_context) == -1){
+	if (cur_thread && swapcontext(&(cur_thread->context), &scheduling_context) == -1) {
 		//if swapcontext fails
 		perror("swapcontext");
 		exit(EXIT_FAILURE);

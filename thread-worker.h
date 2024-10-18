@@ -9,7 +9,8 @@
 
 #define _GNU_SOURCE
 
-#define MAX_SIZE 10000000 
+#define MAX_SIZE 10000000
+ 
 
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_WORKERS macro */
 #define USE_WORKERS 1
@@ -52,7 +53,7 @@ typedef struct TCB {
 	// YOUR CODE HERE
 	worker_t thread_id; 
 	thread_status_t thread_status; 
-	ucontext_t *context;
+	ucontext_t context; //took * out. Now can pass directly
 	thread_stack *thread_stack;
 	int priority;
 	//Function ptr for task
@@ -62,6 +63,16 @@ typedef struct TCB {
 	//worker_t parent_id;
 } tcb; 
 
+typedef struct Node {
+    tcb *data;
+    struct Node *next;
+}Node;
+
+typedef struct Queue {
+    struct Node *front, *rear;
+}Queue;
+
+
 /* mutex struct definition */
 typedef struct worker_mutex_t {
 	/* add something here */
@@ -69,7 +80,7 @@ typedef struct worker_mutex_t {
 
     int locked; // 1 is locked, 0 is not locked
     tcb* owner; 
-    tcb* blocked_list; //all threads that are blocked get added here
+    Queue* blocked_list; //all threads that are blocked get added here
 } worker_mutex_t;
 
 /* Priority definitions */
@@ -86,14 +97,7 @@ typedef struct worker_mutex_t {
 
 
 
-typedef struct Node {
-    worker_t data;
-    struct Node* next;
-}Node;
 
-typedef struct Queue {
-    struct Node *front, *rear;
-}Queue;
 
 
 // YOUR CODE HERE
@@ -102,8 +106,8 @@ typedef struct Queue {
 extern int push(thread_stack *stack, worker_t value);
 extern int pop(thread_stack *stack, worker_t *value);
 extern int peek(thread_stack *stack, worker_t *value);
-extern void enqueue(struct Queue* queue, worker_t value);
-extern worker_t dequeue(struct Queue* queue);
+extern void enqueue(struct Queue* queue, tcb* new_thread);
+extern tcb* dequeue(struct Queue* queue);
 extern void ring(int signum);
 extern int is_full(thread_stack *stack);
 extern int is_empty(thread_stack *stack);

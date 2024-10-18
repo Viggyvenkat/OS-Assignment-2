@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <string.h>
+#include <stdint.h>
 #include "thread-worker.h"
 
 
@@ -14,3 +15,5 @@
  * You can modify and use this program as much as possible.
  * This will not be graded.
  */
+
+/* Test function for threads */
