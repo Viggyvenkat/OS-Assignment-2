@@ -213,7 +213,7 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
 
 	// YOUR CODE HERE
 	if (mutex->owner != cur_thread) {
-        return -1; // Error: Mutex can only be unlocked by the owner
+        return -1; 
     }
 
     // Release the mutex
