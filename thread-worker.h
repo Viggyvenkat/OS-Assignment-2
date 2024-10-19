@@ -9,22 +9,10 @@
 
 #define _GNU_SOURCE
 
-#define MAX_SIZE 10000000
-#define DEFAULT_RUNTIME 10 //10 miliseconds per thread (time slice per thread)
-
-
-
-//Thread States
-#define READY 0
-#define SCHEDULED 1
-#define BLOCKED 2
-#define TERMINATED 3
-#define WAITING 4
-
- 
-
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_WORKERS macro */
 #define USE_WORKERS 1
+#define STACK_SIZE 8192
+
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -32,25 +20,21 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <ucontext.h>
+#include <signal.h>
+#include <sys/time.h>
+#include <stdbool.h> //for scheduler stuff
 
-typedef uint worker_t;
 
+//Enum for thread states
 typedef enum {
-    THREAD_NEW,
-    THREAD_RUNNABLE,
-    THREAD_BLOCKED,
-    THREAD_WAITING,
-    THREAD_TERMINATED
-} thread_status_t;
+	READY,
+	SCHEDULED,
+	BLOCKED,
+	FINISHED
+}thread_state_t;
 
-
-//thread stack needs to be above TCB
-typedef struct stack {
-	worker_t arr[MAX_SIZE];
-	worker_t top;
-} thread_stack;
+typedef uint worker_t; //worker_t is thread ID
 
 typedef struct TCB {
 	/* add important states in a thread control block */
@@ -62,38 +46,22 @@ typedef struct TCB {
 	// And more ...
 
 	// YOUR CODE HERE
-	worker_t thread_id; 
-	thread_status_t thread_status; 
-	ucontext_t context; //took * out. Now can pass directly
-	thread_stack *thread_stack;
-	int priority;
-	//Function ptr for task
-	void (*function)(void *);
-	//Arg for thread's function
-	void *arg;
-	//needed for psjf
-	int remaining_time;
-	//worker_t parent_id;
+	int thread_id;// changed to int
+    int priority; 
+    thread_state_t status;
+    ucontext_t context;
+    void *stack; 
+    void *return_value;// Pointer to hold the return value (if any)
+    int elapsed;// Elapsed time used for scheduling algorithms
+	int waiting_time; //Used for MLFQ to see the time a thread has been wiaitng in current queue
+    struct TCB *next;
 } tcb; 
-
-typedef struct Node {
-    tcb *data;
-    struct Node *next;
-}Node;
-
-typedef struct Queue {
-    struct Node *front, *rear;
-}Queue;
-
 
 /* mutex struct definition */
 typedef struct worker_mutex_t {
 	/* add something here */
-	// YOUR CODE HERE
 
-    int locked; // 1 is locked, 0 is not locked
-    tcb* owner; 
-    Queue* blocked_list; //all threads that are blocked get added here
+	// YOUR CODE HERE
 } worker_mutex_t;
 
 /* Priority definitions */
@@ -103,43 +71,25 @@ typedef struct worker_mutex_t {
 #define MEDIUM_PRIO 2
 #define DEFAULT_PRIO 1
 #define LOW_PRIO 0
-//moving this up cause it's not getting recognized
+
+//definition for MLFQ to prevent starvation
+//Promote thread after 50 timer ticks
+#define AGING_THRESHOLD 50 
+
+
+
+//Externs
+extern tcb *runqueue_head; // Head of the runqueue 
+extern tcb *current_thread;  // Global variable for the currently running thread
+extern ucontext_t scheduler_context; // Global variable for the scheduler context
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
-
-
-
-
-
 // YOUR CODE HERE
+
+
 /* Function Declarations: */
-
-extern int push(thread_stack *stack, worker_t value);
-extern int pop(thread_stack *stack, worker_t *value);
-extern int peek(thread_stack *stack, worker_t *value);
-extern void enqueue(struct Queue* queue, tcb* new_thread);
-extern tcb* dequeue(struct Queue* queue);
-extern void ring(int signum);
-extern int is_full(thread_stack *stack);
-extern int is_empty(Queue* queue);
-//needed a new one for pop()
-extern int is_empty_stack(thread_stack *stack);
-
-
-extern long tot_cntx_switches;
-extern double avg_turn_time;
-extern double avg_resp_time;
-extern ucontext_t scheduling_context, main_context, current_context;
-extern Queue* runqueue;
-extern struct itimerval timer;
-extern struct sigaction sa;
-extern tcb* main_thread;
-extern tcb* cur_thread;
-extern int scheduling_init;
-
-
 
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, void
@@ -167,12 +117,19 @@ int worker_mutex_unlock(worker_mutex_t *mutex);
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex);
 
-int worker_setschedprio(worker_t thread, int prio);
+//My function prototypes for helpers in thread-worker.c
+void enqueue(tcb *thread);
+void setup_timer();
 
 
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
+
+//for test
+#ifdef MLFQ
+int worker_setschedprio(worker_t thread, int prio);
+#endif
 
 #ifdef USE_WORKERS
 #define pthread_t worker_t
