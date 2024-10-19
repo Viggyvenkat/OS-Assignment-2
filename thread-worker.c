@@ -381,32 +381,24 @@ int worker_yield() {
 
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
-    extern tcb* runqueue_head;
-    extern tcb* current_thread;
-
-    // Find the previous thread in the run queue
     tcb* temp_ptr = runqueue_head;
     while (temp_ptr->next != current_thread) {
         temp_ptr = temp_ptr->next;
     }
 
-    // If the current thread is found in the queue
     if (temp_ptr->next == current_thread) {
-        // Pass the return value to the caller, if value_ptr is not NULL
         if (value_ptr != NULL) {
             value_ptr = current_thread->return_value;
         }
 
-        // Remove the current thread from the run queue
         temp_ptr->next = current_thread->next;
 
-        // Deallocate memory associated with the current thread
         free(current_thread->stack);
         free(current_thread->return_value);
         free(current_thread);
 
         current_thread = temp_ptr->next;  
-        context_switch(current_thread);
+        swap_context(current_thread, &scheduler_context);
     }
 }
 
