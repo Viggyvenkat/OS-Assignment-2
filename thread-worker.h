@@ -60,6 +60,9 @@ typedef struct TCB {
 /* mutex struct definition */
 typedef struct worker_mutex_t {
 	/* add something here */
+	int locked; // 1 is locked, 0 is not locked
+    tcb* owner; 
+    tcb* blocked_list;
 
 	// YOUR CODE HERE
 } worker_mutex_t;
@@ -75,8 +78,6 @@ typedef struct worker_mutex_t {
 //definition for MLFQ to prevent starvation
 //Promote thread after 50 timer ticks
 #define AGING_THRESHOLD 50 
-
-
 
 //Externs
 extern tcb *runqueue_head; // Head of the runqueue 
@@ -120,8 +121,6 @@ int worker_mutex_destroy(worker_mutex_t *mutex);
 //My function prototypes for helpers in thread-worker.c
 void enqueue(tcb *thread);
 void setup_timer();
-
-
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
