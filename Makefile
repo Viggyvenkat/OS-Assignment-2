@@ -11,14 +11,20 @@ thread-worker.a: thread-worker.o
 
 thread-worker.o: thread-worker.h
 
-test: test.c thread-worker.o
-	gcc -o test test.c thread-worker.o -lpthread
-
 
 ifeq ($(SCHED), PSJF)
 	$(CC) -pthread $(CFLAGS) -DPSJF thread-worker.c
 else ifeq ($(SCHED), MLFQ)
 	$(CC) -pthread $(CFLAGS) -DMLFQ thread-worker.c
+else
+	echo "no such scheduling algorithm"
+endif
+
+test: thread-worker.a
+ifeq ($(SCHED), PSJF)
+	$(CC) -pthread -g test.c -o test libthread-worker.a -lrt -DPSJF
+else ifeq ($(SCHED), MLFQ)
+	$(CC) -pthread -g test.c -o test libthread-worker.a -lrt -DMLFQ
 else
 	echo "no such scheduling algorithm"
 endif
