@@ -12,7 +12,6 @@ long tot_cntx_switches=0;
 double avg_turn_time=0;
 double avg_resp_time=0;
 
-
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
 static worker_t next_thread_id = 1; // Counter for assigning unique thread IDs
@@ -22,8 +21,6 @@ ucontext_t scheduler_context;  // Define the scheduler context
 bool scheduler_initialized = false; //to help setup scheduler context
 tcb *mlfq_queues[NUMPRIO]; // Array of runqueues for MLFQ
 int time_quantum[NUMPRIO] = {2, 4, 8, 8}; // Time quanta for MLFQ levels (lowest to highest ie; 8 =HIGHPRIO)
-
-
 
 //function prototpyes that're needed cause schedule() is really far towards the bottom 
 static void schedule();
@@ -50,9 +47,7 @@ void setup_scheduler_context() {
     makecontext(&scheduler_context, schedule, 0);
 }
 
-
 //Helper functions that'll be used later on
-
 void enqueue(tcb *thread) {
     if (runqueue_head == NULL) {
         runqueue_head = thread;
@@ -103,7 +98,6 @@ tcb* dequeue() {
 
     return next_thread;
 }
-
 
 //MLFQ version of enqueue because I can't figure out how to use one function for both schedulers
 void enqueue_mlfq(tcb *thread, int priority) {
@@ -235,8 +229,6 @@ void demote_thread(tcb *thread) {
 }
 #endif
 
-
-
 //came with the code
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
@@ -343,8 +335,6 @@ int worker_setschedprio(worker_t thread, int prio) {
 }
 #endif
 
-
-
 /* give CPU possession to other user-level worker threads voluntarily */
 int worker_yield() {
 	
@@ -358,7 +348,6 @@ int worker_yield() {
         perror("Failed to get context in worker_yield"); //DEBUG: REMOVE BEFORE SUBMITTING 
         return -1;
     }
-
     
     if (current_thread->status == FINISHED) {
         printf("Thread %d is finished and will not be requeued.\n", current_thread->thread_id);
@@ -392,11 +381,34 @@ int worker_yield() {
 
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
-	// - de-allocate any dynamic memory created when starting this thread
+    extern tcb* runqueue_head;
+    extern tcb* current_thread;
 
-	// YOUR CODE HERE
-};
+    // Find the previous thread in the run queue
+    tcb* temp_ptr = runqueue_head;
+    while (temp_ptr->next != current_thread) {
+        temp_ptr = temp_ptr->next;
+    }
 
+    // If the current thread is found in the queue
+    if (temp_ptr->next == current_thread) {
+        // Pass the return value to the caller, if value_ptr is not NULL
+        if (value_ptr != NULL) {
+            value_ptr = current_thread->return_value;
+        }
+
+        // Remove the current thread from the run queue
+        temp_ptr->next = current_thread->next;
+
+        // Deallocate memory associated with the current thread
+        free(current_thread->stack);
+        free(current_thread->return_value);
+        free(current_thread);
+
+        current_thread = temp_ptr->next;  
+        context_switch(current_thread);
+    }
+}
 
 /* Wait for thread termination */
 int worker_join(worker_t thread, void **value_ptr) {
@@ -503,7 +515,6 @@ static void sched_psjf() {
     }
 }
 
-
 static void sched_mlfq() {
     // Iterate from highest priority to lowest
     for (int i = HIGH_PRIO; i >= LOW_PRIO; i--) { 
@@ -534,7 +545,6 @@ static void sched_mlfq() {
         }
     }
 }
-
 
 //The timer functions that call schedule()
 // Signal handler for the timer
@@ -613,7 +623,6 @@ void setup_timer() {
     }
 }
 
-
 //DO NOT MODIFY THIS FUNCTION
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void) {
@@ -625,6 +634,3 @@ void print_app_stats(void) {
 
 
 // Feel free to add any other functions you need
-
-// YOUR CODE HERE
-

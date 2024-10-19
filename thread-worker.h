@@ -76,8 +76,6 @@ typedef struct worker_mutex_t {
 //Promote thread after 50 timer ticks
 #define AGING_THRESHOLD 50 
 
-
-
 //Externs
 extern tcb *runqueue_head; // Head of the runqueue 
 extern tcb *current_thread;  // Global variable for the currently running thread
@@ -120,8 +118,6 @@ int worker_mutex_destroy(worker_mutex_t *mutex);
 //My function prototypes for helpers in thread-worker.c
 void enqueue(tcb *thread);
 void setup_timer();
-
-
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
