@@ -440,7 +440,7 @@ int worker_join(worker_t thread, void **value_ptr) {
 
     while (thread_ptr->status != FINISHED) {
         usleep(10000); // I found this in unistd.h 
-        worker_yield(); //
+        worker_yield(); 
     }
 
     if (value_ptr != NULL) {

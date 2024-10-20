@@ -1,0 +1,8 @@
+Part I:
+1.1 Thread creation: 
+We constructed a TCB that consisted of: (1) Thread Identifier (2) Priority Status for the Scheduler (3) Thread Status, that was defined 
+by an enumerator that had four valeus: READY, SCHEDULED, BLOCKED, FINISHED (4) A context variable with type ucontext to save the registers 
+information (5) A stack variable to help setting the uc_stack.ss_sp (6) A pointer to hold the return value if need be (7) An integer to hold 
+the number of seconds that has elapsed, utilized for the scheduler (8) A list of next TCB's, that was utilized for the runqueue and scheduler
+threads. 
+
