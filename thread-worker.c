@@ -381,24 +381,30 @@ int worker_yield() {
 
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
-    tcb* temp_ptr = runqueue_head;
+    
+    tcb *temp_ptr = runqueue_head;
     while (temp_ptr->next != current_thread) {
         temp_ptr = temp_ptr->next;
     }
 
+    
     if (temp_ptr->next == current_thread) {
         if (value_ptr != NULL) {
-            value_ptr = current_thread->return_value;
+            *(void **)value_ptr = current_thread->return_value;
         }
 
+        
         temp_ptr->next = current_thread->next;
 
-        free(current_thread->stack);
-        free(current_thread->return_value);
+        
+        if (current_thread->stack != NULL) {
+            free(current_thread->stack);
+        }
+
+       
         free(current_thread);
 
-        current_thread = temp_ptr->next;  
-        swap_context(current_thread, &scheduler_context);
+        setcontext(&scheduler_context);
     }
 }
 
@@ -416,7 +422,7 @@ int worker_join(worker_t thread, void **value_ptr) {
 	while(thread_ptr->status != FINISHED);
 	
 	if (value_ptr != NULL) {
-        *value_ptr = thread_ptr->result;
+        *value_ptr = thread_ptr->return_value;
     }
 
 	return 0;
