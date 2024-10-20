@@ -62,7 +62,7 @@ typedef struct worker_mutex_t {
 	/* add something here */
 	int locked; // 1 is locked, 0 is not locked
     tcb* owner; 
-    tcb* blocked_list;
+    tcb** blocked_list;
 
 	// YOUR CODE HERE
 } worker_mutex_t;

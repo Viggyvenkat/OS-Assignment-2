@@ -30,6 +30,9 @@ static void sched_mlfq();
 //initialize scheduler_context to point to schedule() [Solution to segmentation fault issue]
 ucontext_t scheduler_context;
 char scheduler_stack[STACK_SIZE];
+
+worker_mutex_t *lock;
+
 void setup_scheduler_context() {
     // Initialize the scheduler context
     if (getcontext(&scheduler_context) == -1) {
@@ -380,32 +383,39 @@ int worker_yield() {
 };
 
 /* terminate a thread */
-void worker_exit(void *value_ptr) {
-    
+void worker_exit(void *value_ptr) {	
+    // - de-allocate any dynamic memory created by the thread
+	// YOUR CODE HERE
+    if (current_thread == NULL || runqueue_head == NULL) {
+        fprintf(stderr, "Error: current_thread or runqueue_head is NULL\n");
+        exit(EXIT_FAILURE);
+    }
+
     tcb *temp_ptr = runqueue_head;
-    while (temp_ptr->next != current_thread) {
+    while (temp_ptr != NULL && temp_ptr->next != current_thread) {
         temp_ptr = temp_ptr->next;
     }
 
-    
-    if (temp_ptr->next == current_thread) {
-        if (value_ptr != NULL) {
-            *(void **)value_ptr = current_thread->return_value;
-        }
-
-        
-        temp_ptr->next = current_thread->next;
-
-        
-        if (current_thread->stack != NULL) {
-            free(current_thread->stack);
-        }
-
-       
-        free(current_thread);
-
-        setcontext(&scheduler_context);
+    if (temp_ptr == NULL || temp_ptr->next != current_thread) {
+        fprintf(stderr, "Error: current_thread not found in the run queue\n");
+        exit(EXIT_FAILURE);
     }
+
+    if (value_ptr != NULL) {
+        *(void **)value_ptr = current_thread->return_value;
+    }
+
+    temp_ptr->next = current_thread->next;
+
+    if (current_thread->stack != NULL) {
+        free(current_thread->stack);
+        current_thread->stack = NULL; 
+    }
+
+    free(current_thread);
+    current_thread = NULL;  
+
+    setcontext(&scheduler_context); 
 }
 
 /* Wait for thread termination */
@@ -413,19 +423,42 @@ int worker_join(worker_t thread, void **value_ptr) {
 	// - wait for a specific thread to terminate
 	// - de-allocate any dynamic memory created by the joining thread
 	// YOUR CODE HERE
-	tcb* temp_ptr = runqueue_head;
-    while (temp_ptr->next->thread_id != thread) {
+	if (runqueue_head == NULL) {
+        fprintf(stderr, "Error: runqueue_head is NULL\n");
+        return -1;
+    }
+
+    tcb *temp_ptr = runqueue_head;
+    while (temp_ptr != NULL && temp_ptr->next != NULL && temp_ptr->next->thread_id != thread) {
         temp_ptr = temp_ptr->next;
     }
 
-	tcb* thread_ptr = temp_ptr->next;
-	while(thread_ptr->status != FINISHED);
-	
-	if (value_ptr != NULL) {
+    if (temp_ptr == NULL || temp_ptr->next == NULL) {
+        fprintf(stderr, "Error: Thread with ID %d not found in the run queue\n", thread);
+        return -1;
+    }
+
+    tcb *thread_ptr = temp_ptr->next;
+
+    while (thread_ptr->status != FINISHED) {
+        // We should add something here to prevent malicious threads (Just a note for now wil add ...)
+    }
+
+    if (value_ptr != NULL) {
         *value_ptr = thread_ptr->return_value;
     }
 
-	return 0;
+    temp_ptr->next = thread_ptr->next; 
+
+    if (thread_ptr->stack != NULL) {
+        free(thread_ptr->stack);
+        thread_ptr->stack = NULL; 
+    }
+
+    free(thread_ptr); 
+    setcontext(&scheduler_context); 
+
+    return 0;
 };
 
 /* initialize the mutex lock */
