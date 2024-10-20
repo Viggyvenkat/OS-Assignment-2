@@ -503,7 +503,7 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
         worker_yield(); 
     }
 
-    mutex->owner = get_current_thread(); 
+    mutex->owner = current_thread; 
 
     return 0;
 };
@@ -513,9 +513,10 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
 	// - release mutex and make it available again. 
 	// - put threads in block list to run queue 
 	// so that they could compete for mutex later.
-
-
 	// YOUR CODE HERE
+
+
+
 	return 0;
 };
 
