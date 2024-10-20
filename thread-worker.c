@@ -499,8 +499,8 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
         return -1; 
     }
 
-    while (!__sync_bool_compare_and_swap(&(mutex->locked), 0, 1)) {
-        worker_yield(); 
+    while (__sync_lock_test_and_set(&(mutex->locked), 1)) {
+        blocking_mech(mutex, current_thread)
     }
 
     mutex->owner = current_thread; 
@@ -508,23 +508,54 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
     return 0;
 };
 
+void blocking_mech(worker_mutex_t *mutex, worker_t *current_thread){
+    current_thread->status = BLOCKED;
+
+    if (mutex->blocked_count < mutex->max_blocked) {
+        mutex->blocked_list[mutex->blocked_count] = current_thread; 
+        mutex->blocked_count++;
+    } else {
+        fprintf(stderr, "Error: Blocked list is full\n"); 
+    }
+    
+}
+
 /* release the mutex lock */
 int worker_mutex_unlock(worker_mutex_t *mutex) {
 	// - release mutex and make it available again. 
 	// - put threads in block list to run queue 
 	// so that they could compete for mutex later.
 	// YOUR CODE HERE
+    if (mutex == NULL) {
+        return -1; 
+    }
 
+    if (mutex->owner != current_thread) {
+        return -1; 
+    }
 
+    mutex->owner = NULL;
+    __sync_lock_release(&(mutex->locked));
 
-	return 0;
+    // Move threads from blocked_list to the run queue
+    for (int i = 0; i < mutex->blocked_count; i++) {
+        tcb *thread = mutex->blocked_list[i];
+        thread->status = READY; 
+        enqueue(thread); 
+    }
+
+    mutex->blocked_count = 0;
+
+    return 0; 
 };
 
 
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex) {
 	// - de-allocate dynamic memory created in worker_mutex_init
-
+    free(mutex->blocked_list); 
+    free(mutex->owner);
+    free(mutex); 
 	return 0;
 };
 
