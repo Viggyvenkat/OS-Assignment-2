@@ -31,8 +31,6 @@ static void sched_mlfq();
 ucontext_t scheduler_context;
 char scheduler_stack[STACK_SIZE];
 
-worker_mutex_t *lock;
-
 void setup_scheduler_context() {
     // Initialize the scheduler context
     if (getcontext(&scheduler_context) == -1) {
@@ -490,14 +488,24 @@ int worker_mutex_init(worker_mutex_t *mutex,
 
 /* aquire the mutex lock */
 int worker_mutex_lock(worker_mutex_t *mutex) {
+    // - use the built-in test-and-set atomic function to test the mutex
+    // - if the mutex is acquired successfully, enter the critical section
+    // - if acquiring mutex fails, push current thread into block list and
+    // context switch to the scheduler thread
 
-        // - use the built-in test-and-set atomic function to test the mutex
-        // - if the mutex is acquired successfully, enter the critical section
-        // - if acquiring mutex fails, push current thread into block list and
-        // context switch to the scheduler thread
+    // YOUR CODE HERE
 
-        // YOUR CODE HERE
-        return 0;
+    if (mutex == NULL) {
+        return -1; 
+    }
+
+    while (!__sync_bool_compare_and_swap(&(mutex->locked), 0, 1)) {
+        worker_yield(); 
+    }
+
+    mutex->owner = get_current_thread(); 
+
+    return 0;
 };
 
 /* release the mutex lock */
@@ -505,6 +513,7 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
 	// - release mutex and make it available again. 
 	// - put threads in block list to run queue 
 	// so that they could compete for mutex later.
+
 
 	// YOUR CODE HERE
 	return 0;
