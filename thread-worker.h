@@ -89,7 +89,6 @@ extern ucontext_t scheduler_context; // Global variable for the scheduler contex
 
 // YOUR CODE HERE
 
-
 /* Function Declarations: */
 
 /* create a new thread */

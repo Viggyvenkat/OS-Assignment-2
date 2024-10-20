@@ -404,11 +404,21 @@ void worker_exit(void *value_ptr) {
 
 /* Wait for thread termination */
 int worker_join(worker_t thread, void **value_ptr) {
-	
 	// - wait for a specific thread to terminate
 	// - de-allocate any dynamic memory created by the joining thread
-  
 	// YOUR CODE HERE
+	tcb* temp_ptr = runqueue_head;
+    while (temp_ptr->next->thread_id != thread) {
+        temp_ptr = temp_ptr->next;
+    }
+
+	tcb* thread_ptr = temp_ptr->next;
+	while(thread_ptr->status != FINISHED);
+	
+	if (value_ptr != NULL) {
+        *value_ptr = thread_ptr->result;
+    }
+
 	return 0;
 };
 
