@@ -439,8 +439,8 @@ int worker_join(worker_t thread, void **value_ptr) {
     tcb *thread_ptr = temp_ptr->next;
 
     while (thread_ptr->status != FINISHED) {
-        // We should add something here to prevent malicious threads (Just a note for now wil add ...)
-        //Some kind of a sleep mechanism to reduce the CPU load I think?? 
+        usleep(10000); // I found this in unistd.h 
+        worker_yield(); //
     }
 
     if (value_ptr != NULL) {
@@ -486,6 +486,18 @@ int worker_mutex_init(worker_mutex_t *mutex,
     return 0;
 };
 
+void blocking_mech(worker_mutex_t *mutex, worker_t *current_thread){
+    current_thread->status = BLOCKED;
+
+    if (mutex->blocked_count < mutex->max_blocked) {
+        mutex->blocked_list[mutex->blocked_count] = current_thread; 
+        mutex->blocked_count++;
+    } else {
+        fprintf(stderr, "Error: Blocked list is full\n"); 
+    }
+    
+}
+
 /* aquire the mutex lock */
 int worker_mutex_lock(worker_mutex_t *mutex) {
     // - use the built-in test-and-set atomic function to test the mutex
@@ -507,18 +519,6 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
 
     return 0;
 };
-
-void blocking_mech(worker_mutex_t *mutex, worker_t *current_thread){
-    current_thread->status = BLOCKED;
-
-    if (mutex->blocked_count < mutex->max_blocked) {
-        mutex->blocked_list[mutex->blocked_count] = current_thread; 
-        mutex->blocked_count++;
-    } else {
-        fprintf(stderr, "Error: Blocked list is full\n"); 
-    }
-    
-}
 
 /* release the mutex lock */
 int worker_mutex_unlock(worker_mutex_t *mutex) {
