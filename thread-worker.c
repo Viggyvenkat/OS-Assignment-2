@@ -442,6 +442,7 @@ int worker_join(worker_t thread, void **value_ptr) {
 
     while (thread_ptr->status != FINISHED) {
         // We should add something here to prevent malicious threads (Just a note for now wil add ...)
+        //Some kind of a sleep mechanism to reduce the CPU load I think?? 
     }
 
     if (value_ptr != NULL) {
@@ -465,9 +466,26 @@ int worker_join(worker_t thread, void **value_ptr) {
 int worker_mutex_init(worker_mutex_t *mutex, 
                           const pthread_mutexattr_t *mutexattr) {
 	//- initialize data structures for this mutex
-
 	// YOUR CODE HERE
-	return 0;
+
+    if (mutex == NULL) {
+        return -1; 
+    }
+    
+    mutex->locked = 0; 
+    mutex->owner = NULL;
+    mutex->blocked_count = 0;
+    mutex->max_blocked = MAX_BLOCK;
+
+    mutex->blocked_list = (tcb**)malloc(sizeof(tcb*) * mutex->max_blocked);
+
+    // We need to do this sadly because malloc could have some garbage data in the alloaction
+    // I think we need to, maybe there is a better way to make it from O(n) -> O(1)?
+    for (int i = 0; i < mutex->max_blocked; ++i) {
+        mutex->blocked_list[i] = NULL;
+    }
+
+    return 0;
 };
 
 /* aquire the mutex lock */

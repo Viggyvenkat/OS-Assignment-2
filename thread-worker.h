@@ -57,12 +57,15 @@ typedef struct TCB {
     struct TCB *next;
 } tcb; 
 
+#define MAX_BLOCK 100000
 /* mutex struct definition */
 typedef struct worker_mutex_t {
 	/* add something here */
 	int locked; // 1 is locked, 0 is not locked
     tcb* owner; 
     tcb** blocked_list;
+	int blocked_count;
+	int max_blocked;
 
 	// YOUR CODE HERE
 } worker_mutex_t;
