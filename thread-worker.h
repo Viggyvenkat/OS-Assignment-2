@@ -55,6 +55,7 @@ typedef struct TCB {
     int elapsed;// Elapsed time used for scheduling algorithms
 	int waiting_time; //Used for MLFQ to see the time a thread has been wiaitng in current queue
     struct TCB *next;
+	struct TCB *blocked_list; //for worker_join
 } tcb; 
 
 #define MAX_BLOCK 10000000
@@ -63,9 +64,10 @@ typedef struct worker_mutex_t {
 	/* add something here */
 	int locked; // 1 is locked, 0 is not locked
     tcb* owner; 
-    tcb** blocked_list;
+    tcb* blocked_list;
 	int blocked_count;
 	int max_blocked;
+	int initialize; //to check if a mutex is initialized
 
 	// YOUR CODE HERE
 } worker_mutex_t;
@@ -79,13 +81,15 @@ typedef struct worker_mutex_t {
 #define LOW_PRIO 0
 
 //definition for MLFQ to prevent starvation
-//Promote thread after 50 timer ticks
-#define AGING_THRESHOLD 50 
+//Promote thread after 10 timer ticks
+#define AGING_THRESHOLD 10
 
 //Externs
 extern tcb *runqueue_head; // Head of the runqueue 
 extern tcb *current_thread;  // Global variable for the currently running thread
 extern ucontext_t scheduler_context; // Global variable for the scheduler context
+
+
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)

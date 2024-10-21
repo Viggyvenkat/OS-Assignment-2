@@ -8,7 +8,7 @@ CC = gcc
 CFLAGS = -g -w $(SCHED_FLAG)
 
 
-all:: clean parallel_cal vector_multiply external_cal test
+all:: clean parallel_cal vector_multiply external_cal
 
 parallel_cal:
 	$(CC) $(CFLAGS) -pthread -o parallel_cal parallel_cal.c -L../ -lthread-worker
@@ -19,8 +19,5 @@ vector_multiply:
 external_cal:
 	$(CC) $(CFLAGS) -pthread -o external_cal external_cal.c -L../ -lthread-worker
 
-test:
-	$(CC) $(CFLAGS) -pthread -o test test.c -L../ -lthread-worker
-
 clean:
-	rm -rf testcase test parallel_cal vector_multiply external_cal *.o ./record/ *.dSYM
+	rm -rf testcase parallel_cal vector_multiply external_cal *.o ./record/ *.dSYM
