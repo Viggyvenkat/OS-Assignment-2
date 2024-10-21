@@ -830,7 +830,7 @@ static void sched_mlfq() {
             if (current_thread != NULL) {
                 current_thread->status = SCHEDULED;
                 printf("Switching to thread %u with priority %d\n", current_thread->thread_id, i);
-                return; // Exit after setting up the thread
+                return;
             }
         }
     }

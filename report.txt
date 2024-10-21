@@ -1,8 +1,36 @@
 Part I:
 1.1 Thread creation: 
 We constructed a TCB that consisted of: (1) Thread Identifier (2) Priority Status for the Scheduler (3) Thread Status, that was defined 
-by an enumerator that had four valeus: READY, SCHEDULED, BLOCKED, FINISHED (4) A context variable with type ucontext to save the registers 
+by an enumerator that had four values: READY, SCHEDULED, BLOCKED, FINISHED (4) A context variable with type ucontext to save the registers 
 information (5) A stack variable to help setting the uc_stack.ss_sp (6) A pointer to hold the return value if need be (7) An integer to hold 
 the number of seconds that has elapsed, utilized for the scheduler (8) A list of next TCB's, that was utilized for the runqueue and scheduler
 threads. 
 
+Since the scheduler context has to be intitialized the first time a worker thread is created, we created a function called 
+setup_scheduler_context() that instantiates all of the contexts for the scheduler and we set our boolean to True so that the scheduler does 
+not get initialized again. We then allocate some memory for our new thread and make sure that there was no error with the memory allocation. 
+We then get the context of the new thread and once again set up some debugging to ensure no errors in the code. We then set up the context's 
+stack using the sample-code instructions! we then make the context to execute the function with the given argument. We then add the new thread 
+to the runqueue and intitailize some of our other parameters for the control block (i.e. status, elapsed time, and the waiting time). Based on the 
+macro value, the thread is enqueued to the respective scheduler. 
+
+We also defined our global variables to be next_thread_id as a counter for unique thread IDs. A runqueue_head to define the current running 
+thread and a scheduler_context to define the scheduler context. We then defined scheduler_initialized to help setup scheduler context and
+mlfq_queues as an array of runqueues for MLFQ. Lastly a time_quantum to define our time quanta for MLFQ levels (lowest to highest ie; 8 =HIGHPRIO).
+
+1.2 Thread Yield:
+We check the context of the current_thread to ensure there is a viable context for us to operate upon and check if status is equal to FINISHED. 
+If there is viable context and not equal to FINISHED, then we set the status to READY and swap the context to the scheduler_context. Based on the 
+macro value, the thread is enqueued to the respective scheduler. 
+
+1.3 Thread Exit: 
+
+
+1.4 Thread Join:
+
+1.5 Thread Synchronization:
+
+Part II:
+2.1 PSJF:
+
+2.2 MLFQ:
