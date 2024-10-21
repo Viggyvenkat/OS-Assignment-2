@@ -486,17 +486,6 @@ int worker_mutex_init(worker_mutex_t *mutex,
     return 0;
 };
 
-void blocking_mech(worker_mutex_t *mutex, worker_t *current_thread){
-    current_thread->status = BLOCKED;
-
-    if (mutex->blocked_count < mutex->max_blocked) {
-        mutex->blocked_list[mutex->blocked_count] = current_thread; 
-        mutex->blocked_count++;
-    } else {
-        fprintf(stderr, "Error: Blocked list is full\n"); 
-    }
-    
-}
 
 /* aquire the mutex lock */
 int worker_mutex_lock(worker_mutex_t *mutex) {
@@ -512,7 +501,14 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
     }
 
     while (__sync_lock_test_and_set(&(mutex->locked), 1)) {
-        blocking_mech(mutex, current_thread)
+        current_thread->status = BLOCKED;
+
+        if (mutex->blocked_count < mutex->max_blocked) {
+            mutex->blocked_list[mutex->blocked_count] = current_thread; 
+            mutex->blocked_count++;
+        } else {
+            fprintf(stderr, "Error: Blocked list is full\n"); 
+        }    
     }
 
     mutex->owner = current_thread; 
