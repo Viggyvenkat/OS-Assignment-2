@@ -536,10 +536,9 @@ void worker_exit(void *value_ptr) {
         current_thread->return_value = value_ptr;
     }
     
-    /*
     enqueue_terminated(current_thread);
-    */
-    //setcontext(&scheduler_context);
+    
+    setcontext(&scheduler_context);
 }
 
 
@@ -557,22 +556,27 @@ int worker_join(worker_t thread, void **value_ptr) {
 
     printf("Waiting for thread ID %d to terminate...\n", thread);
 
+    tcb* temp = current_thread;
+    current_thread = joining_thread;
+
     // Wait until the thread's status changes to TERMINATED
-    while (joining_thread->status != FINISHED) {
+    while (current_thread->status != FINISHED) {
          // Yield to let other threads run
          worker_yield();
     }
 
     // Retrieve the return value if provided
     if (value_ptr) {
-        *value_ptr = joining_thread->return_value;
+        *value_ptr = current_thread->return_value;
     }
 
     // Free up the thread resources
-    if (joining_thread->stack) {
-        free(joining_thread->stack);
+    if (current_thread->stack) {
+        free(current_thread->stack);
     }
-    free(joining_thread);
+    free(current_thread);
+
+    current_thread = temp;
 
     return 0;
 }
