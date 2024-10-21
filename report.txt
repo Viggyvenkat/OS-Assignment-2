@@ -29,3 +29,8 @@ macro value, the thread is enqueued to the respective scheduler.
 1.4 Thread Join:
 
 1.5 Thread Synchronization:
+
+Part II:
+2.1 PSJF:
+
+2.2 MLFQ:
