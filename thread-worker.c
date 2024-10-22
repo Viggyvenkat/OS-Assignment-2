@@ -737,6 +737,7 @@ static void sched_mlfq() {
     dequeue_mlfq();
 
     //Check for custom testing, not really needed for benchmark
+    //reset_mlfq handles promotion for benchmarks, only for custom test
     //not really necessary but is a good check
     if (current_thread != NULL) {
         int time_slice = TIME_SLICE_PER_LEVEL[current_thread->priority];
