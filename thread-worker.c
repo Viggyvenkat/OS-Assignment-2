@@ -1,7 +1,7 @@
 // File:	thread-worker.c
 
 // List all group member's name: Divit Shetty & Vignesh Venkat
-// username of iLab: dps190
+// username of iLab: dps190 & vvv11
 // iLab Server: 3
 
 #include "thread-worker.h"
@@ -85,6 +85,7 @@ int setup_scheduler_context(){
     primaryTCB->thread_id = thread_count++;
     primaryTCB->status = READY;
     primaryTCB->priority = HIGH_PRIO;
+    //printf("setup_scheduler_context: Primary thread initialized with priority level %d (HIGH_PRIO)\n", primaryTCB->priority);
     primaryTCB->elapsed = 0;
     primaryTCB->next = NULL;
     primaryTCB->queue_time = clock(); //USE FOR METRICS VIGNESH
@@ -233,6 +234,7 @@ void reset_mlfq() {
     //Resets if not NULL
     if (current_thread != NULL) {
         current_thread->priority = HIGH_PRIO;
+        //printf("reset_mlfq: Current thread ID %d reset to priority level %d (HIGH_PRIO)\n", current_thread->thread_id, current_thread->priority);
     }
 
     tcb* temp;
@@ -242,13 +244,15 @@ void reset_mlfq() {
     temp = blockQueue.head;
     while (temp != NULL) {
         temp->priority = HIGH_PRIO;
+        //printf("reset_mlfq: Thread ID %d in blockQueue reset to priority level %d (HIGH_PRIO)\n", temp->thread_id, temp->priority);
         temp = temp->next;
     }
 
     // Iterate over all priority levels in the MLFQ,
-    for (int i = 1; i < NUMPRIO; i++) {
+    for (int i = MEDIUM_PRIO; i >= LOW_PRIO; i--) {
         while ((temp = dequeue(&mlfq_queues[i])) != NULL) {
             temp->priority = HIGH_PRIO;
+            //printf("reset_mlfq: Thread ID %d moved from queue %d to priority level %d (HIGH_PRIO)\n", temp->thread_id, i, temp->priority);
             enqueue(&mlfq_queues[HIGH_PRIO], temp);
         }
     }
@@ -379,6 +383,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
         new_thread->status = READY;
         //start off at the highest priority
         new_thread->priority = HIGH_PRIO; 
+        //printf("worker_create: Thread ID %d initialized with priority level %d (HIGH_PRIO)\n", new_thread->thread_id, new_thread->priority);
         new_thread->elapsed = 0;
         new_thread->next = NULL;
         new_thread->queue_time = clock();
@@ -731,6 +736,7 @@ static void sched_mlfq() {
     // Far less omplicated than previous implementation
     dequeue_mlfq();
 
+    //not really necessary but is a good check
     if (current_thread != NULL) {
         int time_slice = TIME_SLICE_PER_LEVEL[current_thread->priority];
 
@@ -738,11 +744,16 @@ static void sched_mlfq() {
         if (current_thread->elapsed >= time_slice) {
             // If not at the lowest priority level, demote it.
             if (current_thread->priority < NUMPRIO - 1) {
-                current_thread->priority++;
+                current_thread->priority--;
                 current_thread->elapsed = 0; // Reset the elapsed time after demoting a thread
+
+                // Debug statement to print the new priority
+                printf("Thread ID %d demoted to priority level: %d\n", current_thread->thread_id, current_thread->priority);
             }
         }
 
+        //unnecessary as it is handled in ring()
+        /*
         // Promote threads that have been waiting too long (aging mechanism).
         for (int i = 1; i < NUMPRIO; i++) {
             tcb* aging_thread = mlfq_queues[i].head;
@@ -753,8 +764,11 @@ static void sched_mlfq() {
                     dequeue(&mlfq_queues[aging_thread->priority]);
                     
                     // Promote thread to the next higher priority level.
-                    aging_thread->priority--;
+                    aging_thread->priority++;
                     aging_thread->queue_time = clock(); // Reset queue time
+
+                    // Debug statement to print the new priority
+                    printf("Thread ID %d promoted to priority level: %d\n", aging_thread->thread_id, aging_thread->priority);
                     
                     // Re-enqueue thread.
                     enqueue(&mlfq_queues[aging_thread->priority], aging_thread);
@@ -764,7 +778,9 @@ static void sched_mlfq() {
                 }
             }
         }
+        */
     }
+    
 
 }
 

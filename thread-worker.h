@@ -1,7 +1,7 @@
 // File:	worker_t.h
 
 // List all group member's name: Divit Shetty & Vignesh Venkat
-// username of iLab: dps190
+// username of iLab: dps190 & vvv11
 // iLab Server: 3
 
 #ifndef WORKER_T_H
