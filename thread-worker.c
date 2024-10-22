@@ -736,6 +736,7 @@ static void sched_mlfq() {
     // Far less omplicated than previous implementation
     dequeue_mlfq();
 
+    //Check for custom testing, not really needed for benchmark
     //not really necessary but is a good check
     if (current_thread != NULL) {
         int time_slice = TIME_SLICE_PER_LEVEL[current_thread->priority];
@@ -748,7 +749,7 @@ static void sched_mlfq() {
                 current_thread->elapsed = 0; // Reset the elapsed time after demoting a thread
 
                 // Debug statement to print the new priority
-                printf("Thread ID %d demoted to priority level: %d\n", current_thread->thread_id, current_thread->priority);
+                //printf("Thread ID %d demoted to priority level: %d\n", current_thread->thread_id, current_thread->priority);
             }
         }
 
