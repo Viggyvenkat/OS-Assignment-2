@@ -5,50 +5,49 @@
 #include "thread-worker.h"
 #include "thread-worker.c"
 
-#define NUM_THREADS 4 //for MLFQ testing
-#define MAX_WAIT_COUNT 1000 // Adjust this as needed for debugging
 
-// Dummy function to simulate workload
-void* worker_function(void* arg) {
+void* test_function(void* arg) {
     int thread_id = *(int*)arg;
-    printf("Thread %d: Started\n", thread_id);
+    printf("Thread %d is running.\n", thread_id);
 
-    // Simulate work by looping
-    for (volatile int i = 0; i < 1000000 * (thread_id + 1); i++);
+    // Simulate some work with multiple yields
+    for (int i = 0; i < 5; i++) {
+        printf("Thread %d yielding...\n", thread_id);
+        worker_yield();
+    }
 
-    printf("Thread %d: Finished work, now exiting.\n", thread_id);
-    worker_exit(NULL); // Properly exit the thread
+    printf("Thread %d is finishing.\n", thread_id);
+    worker_exit(NULL);
     return NULL;
 }
 
 int main() {
-    worker_t threads[NUM_THREADS];
-    int thread_ids[NUM_THREADS];
+    worker_t threads[4];
+    int thread_args[4];
 
-    // Initialize the thread IDs and create the threads
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_ids[i] = i + 1;
-        worker_create(&threads[i], NULL, worker_function, &thread_ids[i]);
-        printf("Thread %d created.\n", i + 1);
-    }
+    // Create 4 threads with different priorities
+    for (int i = 0; i < 4; i++) {
+        thread_args[i] = i;
+        printf("Creating thread %d with priority %d\n", i, i);
 
-    // Main thread waits for each created thread to finish
-    for (int i = 0; i < NUM_THREADS; i++) {
-        printf("Waiting for thread %d to terminate...\n", i + 1);
-        int wait_count = 0;
-
-        // Use worker_join with a timeout check
-        while (worker_join(threads[i], NULL) != 0) {
-            wait_count++;
-            if (wait_count >= MAX_WAIT_COUNT) {
-                printf("Error: Thread %d did not terminate in time. Possible deadlock or error.\n", i + 1);
-                exit(EXIT_FAILURE);
-            }
+        if (worker_create(&threads[i], NULL, test_function, &thread_args[i]) != 0) {
+            fprintf(stderr, "Error creating thread %d.\n", i);
+            return -1;
         }
 
-        printf("Thread %d has terminated.\n", i + 1);
+#ifdef MLFQ
+        // Set initial priority for the threads using worker_setschedprio
+        worker_setschedprio(threads[i], i);
+#endif
     }
 
-    printf("All threads have finished execution.\n");
+    // Wait for all threads to finish
+    for (int i = 0; i < 4; i++) {
+        worker_join(threads[i], NULL);
+    }
+
+    // Print the application statistics after all threads are finished
+    print_app_stats();
+
     return 0;
 }

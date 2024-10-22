@@ -1,8 +1,8 @@
 // File:	worker_t.h
 
-// List all group member's name:
-// username of iLab:
-// iLab Server:
+// List all group member's name: Divit Shetty & Vignesh Venkat
+// username of iLab: dps190
+// iLab Server: 3
 
 #ifndef WORKER_T_H
 #define WORKER_T_H
@@ -13,6 +13,15 @@
 #define USE_WORKERS 1
 #define STACK_SIZE 8192
 
+//10 ms
+#define TIME 10
+#define IT_S TIME/1000
+#define IT_US (TIME * 1000) % 1000000
+
+//definition for MLFQ to prevent starvation
+//Promote thread after 10 timer ticks
+#define AGING_THRESHOLD 10
+
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -20,10 +29,12 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ucontext.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <stdbool.h> //for scheduler stuff
+#include <time.h> //for clock
 
 
 //Enum for thread states
@@ -46,28 +57,38 @@ typedef struct TCB {
 	// And more ...
 
 	// YOUR CODE HERE
-	int thread_id;// changed to int
+	worker_t thread_id; 
+    thread_state_t status; 
+    ucontext_t context; 
+    void* stack; 
     int priority; 
-    thread_state_t status;
-    ucontext_t context;
-    void *stack; 
-    void *return_value;// Pointer to hold the return value (if any)
-    int elapsed;// Elapsed time used for scheduling algorithms
-	int waiting_time; //Used for MLFQ to see the time a thread has been wiaitng in current queue
-    struct TCB *next;
-	struct TCB *blocked_list; //for worker_join
+    int elapsed;
+    void* return_value; 
+    clock_t queue_time; //use for metrics that're needed 
+    clock_t start_time;  //use for metrics
+    clock_t end_time; 
+    long response_time;  //use for metrics
+    long turnaround_time; //use for metrics
+    struct TCB* next; 
+    struct TCB* blocked_list; 
 } tcb; 
+
+//Reusing the old Queue Struct
+typedef struct Queue {
+        tcb* head;
+        tcb* rear;
+} Queue;
 
 #define MAX_BLOCK 10000000
 /* mutex struct definition */
 typedef struct worker_mutex_t {
 	/* add something here */
-	int locked; // 1 is locked, 0 is not locked
-    tcb* owner; 
-    tcb* blocked_list;
-	int blocked_count;
-	int max_blocked;
-	int initialize; //to check if a mutex is initialized
+	int initialize; // 1 = initialize
+    int locked; // 1 = locked
+    tcb* owner; // Pointer to TCB owner of the current mutex lock
+    tcb* blocked_list; // Pointer to a list of blocked threads waiting for the mutex. Holdover from last one not really used 
+    int blocked_count; 
+    int max_blocked; // Maximum number of blocked threads allowed
 
 	// YOUR CODE HERE
 } worker_mutex_t;
@@ -80,21 +101,41 @@ typedef struct worker_mutex_t {
 #define DEFAULT_PRIO 1
 #define LOW_PRIO 0
 
-//definition for MLFQ to prevent starvation
-//Promote thread after 10 timer ticks
-#define AGING_THRESHOLD 10
-
-//Externs
-extern tcb *runqueue_head; // Head of the runqueue 
-extern tcb *current_thread;  // Global variable for the currently running thread
-extern ucontext_t scheduler_context; // Global variable for the scheduler context
-
-
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
 // YOUR CODE HERE
+//Our methods
+
+// initialize scheduler_context to point to schedule() [Solution to segmentation fault issue]
+int setup_scheduler_context();
+//add a thread to the queue
+void enqueue(Queue *queue, tcb* thread);
+//Remove a thread from a queue
+tcb* dequeue(Queue* queue);
+//same as enqueue but for MLFQ
+void enqueue_mlfq(tcb* thread);
+//Remove thread (for PSJF)
+tcb* dequeue_psjf(Queue* queue);
+//Remove thread (MLFQ)
+void dequeue_mlfq();
+// Removes thread from blocked queue 
+void dequeue_blocked();
+//clean reset to the highest priority (default)
+void reset_mlfq();
+//Search a specific queue for a specific thread 
+//Similar to the other find_thread_by_id just that it checks a queue instead of a list
+static tcb* find_thread_by_id(worker_t thread, Queue *queue);
+//Search all queues for specicifc thread 
+//Created a new function after having trouble extending the original
+static tcb* find_thread_by_id_all_queues(worker_t thread);
+int theQueueisEmpty();
+//Metric stuff to track runtime
+static void ring(); 
+static void timer_setup();
+static void start_timer();
+static void stop_timer();
 
 /* Function Declarations: */
 
@@ -124,12 +165,10 @@ int worker_mutex_unlock(worker_mutex_t *mutex);
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex);
 
-//My function prototypes for helpers in thread-worker.c
-void enqueue(tcb *thread);
-void setup_timer();
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
+
 
 //for test
 #ifdef MLFQ
