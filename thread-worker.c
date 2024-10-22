@@ -28,7 +28,8 @@ struct itimerval timer;
 //new Queues, no longer lists
 Queue blockQueue; 
 Queue finishedQueue;
-//The queues for MLFQ. 4 (defined in .h remember)
+//The queues for MLFQ &PSJF. 4 (defined in .h remember)
+//No more seperate for MLFQ and PSJF. PSJF is in the HIGH_PRIO queue
 Queue mlfq_queues[NUMPRIO];
 int initialContextCall = 1; //use in worker_create to make sure scheduler initial context is only called once
 tcb* current_thread = NULL;
@@ -86,12 +87,14 @@ int setup_scheduler_context(){
     primaryTCB->status = READY;
     primaryTCB->priority = HIGH_PRIO;
     //printf("setup_scheduler_context: Primary thread initialized with priority level %d (HIGH_PRIO)\n", primaryTCB->priority);
-    primaryTCB->elapsed = 0;
-    primaryTCB->next = NULL;
     primaryTCB->queue_time = clock(); //USE FOR METRICS VIGNESH
+    primaryTCB->elapsed = 0; //VIGNESH, THIS IS FOR PROMOTION/DEMOTION. CAN MAYBE USE FOR METRICS BUT THAT'S ITS MAIN USE
+    primaryTCB->next = NULL;
+   
     
     //enqueue primaryTCB to the hihgest priority queue (default)
     enqueue(&mlfq_queues[HIGH_PRIO], primaryTCB);
+    
     tot_cntx_switches++;
 
     if (swapcontext(&primaryTCB->context, &scheduler_context) == -1) {
@@ -105,7 +108,50 @@ int setup_scheduler_context(){
 
 }
 
-//basic enqueue just iwth queue now
+//Ring and timer metrics
+//Metric stuff
+//Helper timer functions
+static void start_timer() {
+    timer.it_interval.tv_usec = IT_US; 
+    timer.it_interval.tv_sec = IT_S;
+
+    timer.it_value.tv_usec = IT_US;
+    timer.it_value.tv_sec = IT_S;
+    setitimer(ITIMER_PROF, &timer, NULL);
+}
+
+static void stop_timer() {
+    timer.it_interval.tv_usec = 0;
+    timer.it_interval.tv_sec = 0;
+
+    timer.it_value.tv_usec = 0;
+    timer.it_value.tv_sec = 0;
+    setitimer(ITIMER_PROF, &timer, NULL);
+}
+
+//Timer setup function
+//Moved from worker_create() to save space
+//now called when initialzing context
+void timer_setup() {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = &ring;
+    sigaction(SIGPROF, &sa, NULL);
+
+    // Set up the timer using definitions in .h
+    timer.it_interval.tv_usec = IT_US;
+    timer.it_interval.tv_sec = IT_S;
+
+    timer.it_value.tv_usec = IT_US;
+    timer.it_value.tv_sec = IT_S;
+
+    // Start 
+    setitimer(ITIMER_PROF, &timer, NULL);
+}
+
+
+//basic enqueue just iwth queue now instead of list
+//Expanded on for mlfq
 void enqueue(Queue* queue, tcb* thread) {
     //error check
     if (queue == NULL || thread == NULL) {
@@ -129,30 +175,21 @@ tcb* dequeue(Queue* queue) {
         fprintf(stderr, "Error: dequeue.\n");
         return NULL;
     }
-    tcb* thread = queue->head;
-    if (thread == NULL) {
+    tcb* current_thread = queue->head;
+    if (current_thread == NULL) {
         return NULL;
     }
-    queue->head = thread->next;
+    queue->head = current_thread->next;
     if (queue->head == NULL){
         queue->rear = NULL;
     }
 
-    thread->next = NULL;
-    return thread;
+    current_thread->next = NULL;
+    return current_thread;
 }
-
-//enqueue_mlfq doesn't need priority anymore as a param, just the thread
-//called in schedule() not in the sched_mlfq(). Same idea tho with the loop. Enqueue called after is different tho
-void enqueue_mlfq(tcb* thread) {
-    if (thread->priority >= NUMPRIO) {
-        thread->priority = NUMPRIO - 1;
-    }
-    enqueue(&mlfq_queues[thread->priority], thread);
-}
-
 
 //Added a dequeue for PSJF specifically. Think it was causing issues before using 1 dequeue
+//Finds the thread with the shortest elapsed time and dequeues it
 //Called in sched_psjf. convenient to have a seperate one for psjf
 tcb* dequeue_psjf(Queue* queue) {
     if (queue->head == NULL || queue == NULL) {
@@ -200,7 +237,7 @@ tcb* dequeue_psjf(Queue* queue) {
 //Dequeues the highest priority thread for MLFQ
 //Call in sched_mlfq()
 void dequeue_mlfq() {
-    for (int i = 0; i < NUMPRIO; i++) {
+    for (int i = HIGH_PRIO; i >= LOW_PRIO; i++) {
         if ((current_thread = dequeue(&mlfq_queues[i])) != NULL) {
             return;
         }
@@ -218,43 +255,80 @@ void dequeue_blocked() {
         return NULL;
     }
     */
-    tcb* temp = dequeue(&blockQueue);
+    //dequeue the thread from the blockQueue
+    tcb* unblocked_thread = dequeue(&blockQueue);
 
-    if (temp != NULL) {
-        temp->status = READY;
+    if (unblocked_thread != NULL) {
+        unblocked_thread->status = READY;
         // Reset priority when unblocked 
-        temp->priority = HIGH_PRIO;
-        enqueue(&mlfq_queues[temp->priority], temp);
+        unblocked_thread->priority = HIGH_PRIO;
+        enqueue(&mlfq_queues[unblocked_thread->priority], unblocked_thread);
     }
 }
 
 //function to wipe MLFQ
-void reset_mlfq() {
+void refresh_mlfq() {
     // Reset threads to default. Default priority is the highest HIGH_PRIO 
     //Resets if not NULL
     if (current_thread != NULL) {
         current_thread->priority = HIGH_PRIO;
-        //printf("reset_mlfq: Current thread ID %d reset to priority level %d (HIGH_PRIO)\n", current_thread->thread_id, current_thread->priority);
+        //printf("refresh_mlfq: Current thread ID %d reset to priority level %d (HIGH_PRIO)\n", current_thread->thread_id, current_thread->priority);
     }
 
-    tcb* temp;
 
+    tcb* thread;
     // same resetting but in the blockQueue
     // resetting priority
-    temp = blockQueue.head;
-    while (temp != NULL) {
-        temp->priority = HIGH_PRIO;
-        //printf("reset_mlfq: Thread ID %d in blockQueue reset to priority level %d (HIGH_PRIO)\n", temp->thread_id, temp->priority);
-        temp = temp->next;
+    thread = blockQueue.head;
+    while (thread != NULL) {
+        thread->priority = HIGH_PRIO;
+        //printf("refresh_mlfq: Thread ID %d in blockQueue reset to priority level %d (HIGH_PRIO)\n", thread->thread_id, thread->priority);
+        thread = thread->next;
     }
 
-    // Iterate over all priority levels in the MLFQ,
+    //Previous errors stemmed from iterating from the lowest to the highest
+    //Highest is default so led to infinite loop
+    // Iterate between the second highest and the lowest priorities
     for (int i = MEDIUM_PRIO; i >= LOW_PRIO; i--) {
-        while ((temp = dequeue(&mlfq_queues[i])) != NULL) {
-            temp->priority = HIGH_PRIO;
-            //printf("reset_mlfq: Thread ID %d moved from queue %d to priority level %d (HIGH_PRIO)\n", temp->thread_id, i, temp->priority);
-            enqueue(&mlfq_queues[HIGH_PRIO], temp);
+        while ((thread = dequeue(&mlfq_queues[i])) != NULL) {
+            thread->priority = HIGH_PRIO;
+            //printf("refresh_mlfq: Thread ID %d moved from queue %d to priority level %d (HIGH_PRIO)\n", thread->thread_id, i, thread->priority);
+            enqueue(&mlfq_queues[HIGH_PRIO], thread);
         }
+    }
+}
+
+//Ring function 
+static void ring(int signum) {
+    // Check if there is a current thread to operate on
+    if (current_thread == NULL) {
+        fprintf(stderr, "Warning: ring called with no active thread.\n");
+        return;
+    }
+    // Handle the MLFQ case to prevent starvation
+#ifdef MLFQ
+    // Increment priority if not at the highest level
+    if (current_thread->priority < (NUMPRIO - 1)) {
+        current_thread->priority++;
+    }
+
+    // Refresh the MLFQ if the aging threshold is reached
+    // incriment elapsed by 1 
+    elapsed++;
+    if (elapsed >= AGING_THRESHOLD) {
+        elapsed = 0;
+        refresh_mlfq();
+    }
+#endif
+
+    // Update the total context switch count
+    tot_cntx_switches++;
+    // fprintf(stderr, "Context switch occurred. Total switches: %ld\n", tot_cntx_switches);
+
+    // Perform the context switch to the scheduler
+    if (swapcontext(&current_thread->context, &scheduler_context) == -1) {
+        perror("Error: swapcontext failure in ring function");
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -266,14 +340,14 @@ static tcb* find_thread_by_id(worker_t thread, Queue* queue) {
         fprintf(stderr, "Error: Invalid (null) queue passed to find_thread_by_id.\n");
         return NULL;
     }
-
-    tcb* temp = queue->head;
+    //finding_thread
+    tcb* finding_thread = queue->head;
     //find the thread with the matching ID
-    while (temp != NULL) {
-        if (temp->thread_id == thread) {
-            return temp; //found it
+    while (finding_thread != NULL) {
+        if (finding_thread->thread_id == thread) {
+            return finding_thread; //found it
         }
-        temp = temp->next;
+        finding_thread = finding_thread->next;
     }
     return NULL;
 }
@@ -327,6 +401,8 @@ int theQueueisEmpty() {
 #endif
 }
 
+
+
 //MAIN CODE BELOW
 
 /* create a new thread */
@@ -367,8 +443,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
             exit(1);
         }
 
-        //Setup context
-        // Stack and context
+        //Setup stack and context
         new_thread->context.uc_link = &scheduler_context;
         new_thread->context.uc_stack.ss_sp = stack;
         new_thread->context.uc_stack.ss_size = STACK_SIZE;
@@ -391,7 +466,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 
 
         //Add the new thread
-        enqueue(&mlfq_queues[HIGH_PRIO], new_thread);
+        enqueue(&mlfq_queues[new_thread->priority], new_thread);
 
        
 
@@ -445,18 +520,6 @@ int worker_yield() {
 
 	// YOUR CODE HERE
 
-    //ensure the current thread is valid
-    /*
-    if(current_thread != NULL){
-        if(current_thread->status == SCHEDULED){
-            current_thread->status == READY;
-
-            //incriment the context switch count
-            tot_cntx_switches++;
-            swapcontext(&current_thread->context, &scheduler_context);
-        }
-    }
-    */
     if (current_thread == NULL || current_thread->status != SCHEDULED) {
         fprintf(stderr, "Warning: worker_yield called with invalid thread state.\n");
         return -1;
@@ -465,6 +528,7 @@ int worker_yield() {
     current_thread->status = READY;
 
     tot_cntx_switches++;
+    // fprintf(stderr, "Context switch occurred. Total switches: %ld\n", tot_cntx_switches);
 
     if (swapcontext(&current_thread->context, &scheduler_context) < 0) {
         perror("Error: swapcontext failed in worker_yield");
@@ -585,6 +649,8 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
             mutex->blocked_list = current_thread;
 
             tot_cntx_switches++;
+           //fprintf(stderr, "Context switch occurred. Total switches: %ld\n", tot_cntx_switches); 
+            
 
             swapcontext(&current_thread->context, &scheduler_context);
         }
@@ -679,9 +745,10 @@ static void schedule() {
                 current_thread->start_time = clock();
             }
 
-           
             current_thread->status = SCHEDULED;
+
             tot_cntx_switches++; 
+            // fprintf(stderr, "Context switch occurred. Total switches: %ld\n", tot_cntx_switches);
 
             // Start the timer for the thread's execution
             start_timer();
@@ -696,9 +763,13 @@ static void schedule() {
             if (current_thread->status != FINISHED && current_thread->status != BLOCKED) {
                 current_thread->status = READY;
     #ifndef MLFQ
+
+                //PSJF
                 enqueue(&mlfq_queues[HIGH_PRIO], current_thread); 
-    #else
-                enqueue_mlfq(current_thread);
+    #else       
+
+                //MLFQ
+                enqueue(&mlfq_queues[current_thread->priority], current_thread);
     #endif
             } else if (current_thread->status == BLOCKED) {
                 enqueue(&blockQueue, current_thread);
@@ -721,7 +792,6 @@ static void sched_psjf() {
     //easier than having 2 
     current_thread = dequeue_psjf(&mlfq_queues[HIGH_PRIO]);
     
-
 }
 
 
@@ -737,7 +807,7 @@ static void sched_mlfq() {
     dequeue_mlfq();
 
     //Check for custom testing, not really needed for benchmark
-    //reset_mlfq handles promotion for benchmarks, only for custom test
+    //refresh_mlfq handles promotion for benchmarks, only for custom test
     //not really necessary but is a good check
     if (current_thread != NULL) {
         int time_slice = TIME_SLICE_PER_LEVEL[current_thread->priority];
@@ -799,68 +869,3 @@ void print_app_stats(void) {
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
-//HELPER FUNCTIONS 
-//RING AND METRIC FUNCTIONS
-
-//Ring function
-static void ring(int signum) {
-    if (current_thread != NULL) {
-        //MLFQ case to prevent starvation
-#ifdef MLFQ
-        if (current_thread->priority < NUMPRIO - 1) current_thread->priority++;
-        if (++elapsed >= AGING_THRESHOLD) {
-            elapsed = 0;
-            reset_mlfq();
-        }
-#endif
-        tot_cntx_switches++;
-        // Debug message for monitoring context switches
-        //fprintf(stderr, "Context switch triggered. Total switches: %ld\n", tot_cntx_switches);
-        if (swapcontext(&current_thread->context, &scheduler_context) < 0) {
-            perror("Error: swapcontext failed in ring");
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        fprintf(stderr, "Warning: ring was called but current_thread is NULL.\n");
-    }
-}
-
-//Metric stuff
-//Helper timer functions
-static void start_timer() {
-    timer.it_interval.tv_usec = IT_US; 
-    timer.it_interval.tv_sec = IT_S;
-
-    timer.it_value.tv_usec = IT_US;
-    timer.it_value.tv_sec = IT_S;
-    setitimer(ITIMER_PROF, &timer, NULL);
-}
-
-static void stop_timer() {
-    timer.it_interval.tv_usec = 0;
-    timer.it_interval.tv_sec = 0;
-
-    timer.it_value.tv_usec = 0;
-    timer.it_value.tv_sec = 0;
-    setitimer(ITIMER_PROF, &timer, NULL);
-}
-
-//Timer setup function
-//Moved from worker_create() to save space
-//now called when initialzing context
-void timer_setup() {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = &ring;
-    sigaction(SIGPROF, &sa, NULL);
-
-    // Set up the timer
-    timer.it_interval.tv_usec = IT_US;
-    timer.it_interval.tv_sec = IT_S;
-
-    timer.it_value.tv_usec = IT_US;
-    timer.it_value.tv_sec = IT_S;
-
-    // Start 
-    setitimer(ITIMER_PROF, &timer, NULL);
-}

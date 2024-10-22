@@ -52,7 +52,7 @@ void verify() {
 	for (j = 0; j < R_SIZE; j += 1) {
 		sum += pSum[j];
 	}
-	//printf("verified sum is: %d\n", sum);
+	printf("verified sum is: %d\n", sum);
 }
 
 int main(int argc, char **argv) {

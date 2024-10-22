@@ -62,15 +62,15 @@ typedef struct TCB {
     ucontext_t context; 
     void* stack; 
     int priority; 
-    int elapsed;
+    int elapsed; //use for promotion/demotion
     void* return_value; 
+    struct TCB* next; 
+    struct TCB* blocked_list; //may not be necessary with the block_queue
     clock_t queue_time; //use for metrics that're needed 
     clock_t start_time;  //use for metrics
-    clock_t end_time; 
+    clock_t end_time;  //use for metrics
     long response_time;  //use for metrics
-    long turnaround_time; //use for metrics
-    struct TCB* next; 
-    struct TCB* blocked_list; 
+    long turnaround_time; //use for metrics 
 } tcb; 
 
 //Reusing the old Queue Struct
@@ -110,27 +110,40 @@ typedef struct worker_mutex_t {
 
 // initialize scheduler_context to point to schedule() [Solution to segmentation fault issue]
 int setup_scheduler_context();
+
 //add a thread to the queue
 void enqueue(Queue *queue, tcb* thread);
+
 //Remove a thread from a queue
 tcb* dequeue(Queue* queue);
+
 //same as enqueue but for MLFQ
 void enqueue_mlfq(tcb* thread);
-//Remove thread (for PSJF)
-tcb* dequeue_psjf(Queue* queue);
+
+
+//clean reset to the highest priority (default)
+void refresh_mlfq();
+
 //Remove thread (MLFQ)
 void dequeue_mlfq();
+
+//Remove thread (for PSJF)
+tcb* dequeue_psjf(Queue* queue);
+
 // Removes thread from blocked queue 
 void dequeue_blocked();
-//clean reset to the highest priority (default)
-void reset_mlfq();
+
 //Search a specific queue for a specific thread 
 //Similar to the other find_thread_by_id just that it checks a queue instead of a list
 static tcb* find_thread_by_id(worker_t thread, Queue *queue);
+
 //Search all queues for specicifc thread 
 //Created a new function after having trouble extending the original
 static tcb* find_thread_by_id_all_queues(worker_t thread);
+
+//use in schedule() to keep it running until the Queue is empty
 int theQueueisEmpty();
+
 //Metric stuff to track runtime
 static void ring(); 
 static void timer_setup();

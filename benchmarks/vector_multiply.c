@@ -35,7 +35,7 @@ void verify() {
 	for (i = 0; i < VECTOR_SIZE; i += 1) {
 		sum += r[i] * s[i];	
 	}
-	//printf("verified sum is: %d\n", sum);
+	printf("verified sum is: %d\n", sum);
 }
 
 int main(int argc, char **argv) {
