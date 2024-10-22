@@ -151,7 +151,7 @@ void timer_setup() {
 
 
 //basic enqueue just iwth queue now instead of list
-//Expanded on for mlfq
+//Used for both PSJF and MLFQ
 void enqueue(Queue* queue, tcb* thread) {
     //error check
     if (queue == NULL || thread == NULL) {

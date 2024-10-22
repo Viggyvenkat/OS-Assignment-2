@@ -117,9 +117,6 @@ void enqueue(Queue *queue, tcb* thread);
 //Remove a thread from a queue
 tcb* dequeue(Queue* queue);
 
-//same as enqueue but for MLFQ
-void enqueue_mlfq(tcb* thread);
-
 
 //clean reset to the highest priority (default)
 void refresh_mlfq();
