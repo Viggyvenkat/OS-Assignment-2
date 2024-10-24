@@ -33,7 +33,7 @@ Queue finishedQueue;
 //No more seperate for MLFQ and PSJF. PSJF is in the HIGH_PRIO queue
 Queue mlfq_queues[NUMPRIO];
 int elapsed = 0; //needed for MLFQ
-int TIME_SLICE_PER_LEVEL[NUMPRIO] = {5, 10, 15, 20}; 
+int TIME_SLICE_PER_LEVEL[NUMPRIO] = {5, 10, 15, 20}; // 5 = LOW_PRIO, 20 = HIGH_PRIO
 int completed_threads;
 double total_turn_time;
 double total_resp_time;
@@ -49,6 +49,16 @@ static void sched_mlfq();
 
 // initialize scheduler_context to point to schedule() [Solution to segmentation fault issue]
 int setup_scheduler_context(){
+
+    //precent memory leaks 
+    static int initialized = 0; // Static flag to check if the function has already been called
+
+    if (initialized) {
+        // If the function was already called, return without doing anything
+        return 0;
+    }
+
+    initialized = 1; // Set the flag to indicate the function has been called
 
     if (getcontext(&scheduler_context) == -1) {
         perror("Failed to get context for scheduler");
@@ -447,8 +457,6 @@ int theQueueisEmpty() {
 
 
 
-//MAIN CODE BELOW
-
 /* create a new thread */
 int worker_create(worker_t * thread, pthread_attr_t * attr, 
                       void *(*function)(void*), void * arg) {
@@ -460,9 +468,11 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
        // - make it ready for the execution.
 
        // YOUR CODE HERE
+        
 
          //create the intial context. 
         setup_scheduler_context();
+        
            
         
         //Carry over 
