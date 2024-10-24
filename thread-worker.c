@@ -97,7 +97,7 @@ int setup_scheduler_context(){
     //enqueue primaryTCB to the hihgest priority queue (default)
     enqueue(&mlfq_queues[HIGH_PRIO], primaryTCB);
     //debug: print the queue (just to check)
-    //printQueue(&mlfq_queues[HIGH_PRIO]);
+    //print_Queue(&mlfq_queues[HIGH_PRIO]);
     
     tot_cntx_switches++;
 
@@ -272,7 +272,7 @@ void dequeue_blocked() {
 
 //debug method to print a queue
 //displays thread id, status, priority
-void printQueue(Queue* queue) {
+void print_Queue(Queue* queue) {
     if (queue == NULL) {
         printf("Error: Queue is NULL.\n");
         return;
@@ -361,7 +361,7 @@ static void ring(int signum) {
     if (elapsed >= AGING_THRESHOLD) {
         elapsed = 0; //reset back to 0 and start again
         refresh_mlfq(); //starvation solved
-        //printQueue(&mlfq_queues[current_thread->priority]);
+        //print_Queue(&mlfq_queues[current_thread->priority]);
     }
 #endif
 
@@ -472,7 +472,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
             exit(1);
         }
 
-        if (getcontext(&new_thread->context) < 0) {
+        if (getcontext(&new_thread->context) == -1) {
             perror("Error: getcontext failed in worker_create"); //more specific debugs
             exit(1);
         }  
@@ -509,7 +509,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 
         //Add the new thread
         enqueue(&mlfq_queues[new_thread->priority], new_thread);
-        //printQueue(&mlfq_queues[new_thread->priority]);
+        //print_Queue(&mlfq_queues[new_thread->priority]);
 
        
 
@@ -573,7 +573,7 @@ int worker_yield() {
     tot_cntx_switches++;
     // fprintf(stderr, "Context switch occurred. Total switches: %ld\n", tot_cntx_switches);
 
-    if (swapcontext(&current_thread->context, &scheduler_context) < 0) {
+    if (swapcontext(&current_thread->context, &scheduler_context) == -1) {
         perror("Error: swapcontext failed in worker_yield");
         exit(EXIT_FAILURE);
     }
@@ -616,7 +616,7 @@ void worker_exit(void *value_ptr) {
     }
 
     // Yield control to the scheduler context
-    if (swapcontext(&current_thread->context, &scheduler_context) < 0) {
+    if (swapcontext(&current_thread->context, &scheduler_context) == -1) {
         perror("Error: swapcontext failed in worker_exit");
         exit(1);
     }
@@ -789,9 +789,9 @@ static void schedule() {
 // - schedule policy
 #ifndef MLFQ
 	// Choose PSJF
-    //printQueue(&mlfq_queues[HIGH_PRIO]); // check queue before 
+    //print_Queue(&mlfq_queues[HIGH_PRIO]); // check queue before 
     sched_psjf();
-    //printQueue(&mlfq_queues[HIGH_PRIO]); //check queue after
+    //print_Queue(&mlfq_queues[HIGH_PRIO]); //check queue after
 #else 
 	// Choose MLFQ
     sched_mlfq();
@@ -810,7 +810,7 @@ static void schedule() {
 
             // Start the timer for the thread's execution
             start_timer();
-            if(swapcontext(&scheduler_context, &current_thread->context) < 0){
+            if(swapcontext(&scheduler_context, &current_thread->context) == -1){
                 perror("Error in schedule()");
                 exit(1);
             }

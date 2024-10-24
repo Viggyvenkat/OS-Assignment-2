@@ -145,7 +145,7 @@ static tcb* find_thread_by_id_all_queues(worker_t thread);
 int theQueueisEmpty();
 
 //debug method to print a queue
-void printQueue(Queue* queue);
+void print_Queue(Queue* queue);
 
 
 //Metric stuff to track runtime
