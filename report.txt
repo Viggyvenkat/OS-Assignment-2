@@ -4,17 +4,13 @@ We constructed a TCB that consisted of: (1) Thread Identifier (2) Priority Statu
 by an enumerator that had four values: READY, SCHEDULED, BLOCKED, FINISHED (4) A context variable with type ucontext to save the registers 
 information (5) A stack variable to help setting the uc_stack.ss_sp (6) A pointer to hold the return value if need be (7) An integer to hold 
 the number of seconds that has elapsed, utilized for the scheduler (8) A list of next TCB's, that was utilized for the runqueue and scheduler
-threads. 
-
-Since the scheduler context has to be intitialized the first time a worker thread is created, we created a function called 
+threads. Since the scheduler context has to be intitialized the first time a worker thread is created, we created a function called 
 setup_scheduler_context() that instantiates all of the contexts for the scheduler and we set our boolean to True so that the scheduler does 
 not get initialized again. We then allocate some memory for our new thread and make sure that there was no error with the memory allocation. 
 We then get the context of the new thread and once again set up some debugging to ensure no errors in the code. We then set up the context's 
 stack using the sample-code instructions! we then make the context to execute the function with the given argument. We then add the new thread 
 to the runqueue and intitailize some of our other parameters for the control block (i.e. status, elapsed time, and the waiting time). Based on the 
-macro value, the thread is enqueued to the respective scheduler. 
-
-We also defined our global variables to be next_thread_id as a counter for unique thread IDs. A runqueue_head to define the current running 
+macro value, the thread is enqueued to the respective scheduler. We also defined our global variables to be next_thread_id as a counter for unique thread IDs. A runqueue_head to define the current running 
 thread and a scheduler_context to define the scheduler context. We then defined scheduler_initialized to help setup scheduler context and
 mlfq_queues as an array of runqueues for MLFQ. Lastly a time_quantum to define our time quanta for MLFQ levels (lowest to highest ie; 8 =HIGHPRIO).
 
@@ -24,12 +20,30 @@ If there is viable context and not equal to FINISHED, then we set the status to 
 macro value, the thread is enqueued to the respective scheduler. 
 
 1.3 Thread Exit: 
+First we stop tracking the clock such that the queue_time and the start_time are not including the processes in the exit routine. We then set
+the status of the exiting thread to be FINISHED and if the value_ptr is not NULL, we set the value_ptr to the return_value in the current thread.
+We then increment the number of completed threads, calculate the average response time and average turnaround time. We then de-allocate the 
+stack memory allocated during thread creation. Lastly we yield control to the scheduler context.
 
 1.4 Thread Join:
+In our worker_join() function, we find thread by the worker_id in a helper function. We then check if there is no NULL value for the thread,
+as in our function did in fact find the thread. We then save the return value in a retval. Next we free the stack memory. Lastly we free the
+TCB of the thread we were waiting upon to finish execution.
 
 1.5 Thread Synchronization:
+In our mutex structure, we defined: (1) initialize (2) locked, to define if it was in fact locked or not (3) owner (4) blocked_list 
+(5) blocked_count and (6) max_blocked. We initialize the lock in the worker_mutex_init() function. In the worker_mutex_lock() function we 
+check whether or not the lock is instantiated. We then if the user is attempting to lock an uninitialized mutex. Then we use the test_and_set
+atomic instruction to keep the threads spinning while the mutex is locked. If mutex is locked then the status of the current_thread gets set
+to blocked. We then push current thread into block list and increase the number of context switches before swapping context back to the 
+scheduler. In the worker_mutex_unlock, we once again make sure that the user is not calling our unlock function in an innapropriate manner. 
+We then dequeue from our blocked list, release the lock, and set the owner to null. In our helper function, dequeue_block(), we also 
+unblock a thread and make sure to reset it's priority before enqueuing it into the runqueue again. Lastly, when we coded the function:
+worker_mutex_destroy(), we once again check for all the edge cases a user may try to incorrectly use. We then initialize the mutex back to 
+uninstantiated, set the lock state to default, and set the owner to NULL. We then free all of the pointers and the lock itself.
 
 Part II:
 2.1 PSJF:
+
 
 2.2 MLFQ:

@@ -13,14 +13,18 @@
 #define USE_WORKERS 1
 #define STACK_SIZE 8192
 
+//definition for MLFQ to prevent starvation
+//Promote thread after 7 timer ticks
+//Reduced so that it's more responsive and fair
+//More context switches tho
+#define AGING_THRESHOLD 7
+
+
 //10 ms
 #define TIME 10
 #define IT_S TIME/1000
 #define IT_US (TIME * 1000) % 1000000
 
-//definition for MLFQ to prevent starvation
-//Promote thread after 10 timer ticks
-#define AGING_THRESHOLD 10
 
 
 /* include lib header files that you need here: */
@@ -139,6 +143,10 @@ static tcb* find_thread_by_id_all_queues(worker_t thread);
 
 //use in schedule() to keep it running until the Queue is empty
 int theQueueisEmpty();
+
+//debug method to print a queue
+void printQueue(Queue* queue);
+
 
 //Metric stuff to track runtime
 static void ring(); 

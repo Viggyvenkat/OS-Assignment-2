@@ -25,16 +25,18 @@ ucontext_t benchmark;
 ucontext_t main_context;
 //Timer 
 struct itimerval timer;
+tcb* current_thread = NULL;
 //new Queues, no longer lists
 Queue blockQueue; 
 Queue finishedQueue;
 //The queues for MLFQ &PSJF. 4 (defined in .h remember)
 //No more seperate for MLFQ and PSJF. PSJF is in the HIGH_PRIO queue
 Queue mlfq_queues[NUMPRIO];
-int initialContextCall = 1; //use in worker_create to make sure scheduler initial context is only called once
-tcb* current_thread = NULL;
-int elapsed = 0;
+int elapsed = 0; //needed for MLFQ
 int TIME_SLICE_PER_LEVEL[NUMPRIO] = {5, 10, 15, 20}; 
+int completed_threads;
+double total_turn_time;
+double total_resp_time;
 
 
 //Prototypes for shed_mlfq and psjf called in schedule()
@@ -59,9 +61,9 @@ int setup_scheduler_context(){
         return -1;
     }
 
-    scheduler_context.uc_link = NULL;
     scheduler_context.uc_stack.ss_sp = stack;
     scheduler_context.uc_stack.ss_size = STACK_SIZE;
+    scheduler_context.uc_link = NULL;
     scheduler_context.uc_stack.ss_flags = 0;
 
     //setup schdeuler context to point to schedule()
@@ -94,6 +96,8 @@ int setup_scheduler_context(){
     
     //enqueue primaryTCB to the hihgest priority queue (default)
     enqueue(&mlfq_queues[HIGH_PRIO], primaryTCB);
+    //debug: print the queue (just to check)
+    //printQueue(&mlfq_queues[HIGH_PRIO]);
     
     tot_cntx_switches++;
 
@@ -266,6 +270,44 @@ void dequeue_blocked() {
     }
 }
 
+//debug method to print a queue
+//displays thread id, status, priority
+void printQueue(Queue* queue) {
+    if (queue == NULL) {
+        printf("Error: Queue is NULL.\n");
+        return;
+    }
+
+    tcb* temp = queue->head;
+
+    // Determine the queue type
+    if (queue == &blockQueue) {
+        printf("Contents of Blocked Queue:\n");
+    } else if (queue == &finishedQueue) {
+        printf("Contents of Finished Queue:\n");
+    } else {
+        // Assuming queue is one of the mlfq_queues
+        for (int i = 0; i < NUMPRIO; i++) {
+            if (queue == &mlfq_queues[i]) {
+                printf("Contents of MLFQ Level %d:\n", i);
+                break;
+            }
+        }
+    }
+
+    if (temp == NULL) {
+        printf("Queue is empty.\n");
+        return;
+    }
+
+    while (temp != NULL) {
+        printf("Thread ID: %d | Status: %d | Priority: %d | Elapsed Time: %d\n", 
+               temp->thread_id, temp->status, temp->priority, temp->elapsed);
+        temp = temp->next;
+    }
+    printf("\n");
+}
+
 //function to wipe MLFQ
 void refresh_mlfq() {
     // Reset threads to default. Default priority is the highest HIGH_PRIO 
@@ -314,10 +356,12 @@ static void ring(int signum) {
 
     // Refresh the MLFQ if the aging threshold is reached
     // incriment elapsed by 1 
+    //prevent starvation
     elapsed++;
     if (elapsed >= AGING_THRESHOLD) {
-        elapsed = 0;
-        refresh_mlfq();
+        elapsed = 0; //reset back to 0 and start again
+        refresh_mlfq(); //starvation solved
+        //printQueue(&mlfq_queues[current_thread->priority]);
     }
 #endif
 
@@ -382,14 +426,14 @@ static tcb* find_thread_by_id_all_queues(worker_t thread) {
 int theQueueisEmpty() {
 #ifndef MLFQ //psjf is being used
 
-    //Check if the highest priority queue is empty
+    //Check only if the highest priority queue is empty
     if (mlfq_queues[HIGH_PRIO].head == NULL) {
         return 1; // Queue is empty
     }
-    return 0; // Queue is not empty
+    return 0; 
 #else //mlfq
 
-    // Iterate through all MLFQ levels to check if any queue has threads
+    // Iterate through ALL MLFQ levels to check if any queue has threads
     for (int i = 0; i < NUMPRIO; i++) {
         if (mlfq_queues[i].head != NULL) {
             return 0; // At least one queue is not empty
@@ -417,12 +461,9 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 
        // YOUR CODE HERE
 
-         //create the intial context. Moved it here 
-        //put it in the if to make sure it's only called once. TEst case called it twice by accident
-        if (initialContextCall) {
-            setup_scheduler_context();
-            initialContextCall = 0;
-        }
+         //create the intial context. 
+        setup_scheduler_context();
+           
         
         //Carry over 
         tcb* new_thread = malloc(sizeof(tcb));
@@ -451,13 +492,14 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
         new_thread->stack = stack;
 
         //get the other stuff ready
-        new_thread->thread_id = thread_count;
+        new_thread->thread_id = thread_count; //map ID to the thread #
         *thread = new_thread->thread_id;
-        thread_count++;
         //Initialize status
         new_thread->status = READY;
         //start off at the highest priority
         new_thread->priority = HIGH_PRIO; 
+        //+1 thread
+        thread_count++;
         //printf("worker_create: Thread ID %d initialized with priority level %d (HIGH_PRIO)\n", new_thread->thread_id, new_thread->priority);
         new_thread->elapsed = 0;
         new_thread->next = NULL;
@@ -467,6 +509,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 
         //Add the new thread
         enqueue(&mlfq_queues[new_thread->priority], new_thread);
+        //printQueue(&mlfq_queues[new_thread->priority]);
 
        
 
@@ -551,7 +594,20 @@ void worker_exit(void *value_ptr) {
         current_thread->return_value = value_ptr;
     }
 
+    completed_threads += 1;
+
     //Implement turnaround time operations here too
+    current_thread->end_time = clock();
+    double turn_time = (double)(current_thread->end_time - current_thread->queue_time) / CLOCKS_PER_SEC;
+    double resp_time = (double)(current_thread->start_time - current_thread->queue_time) / CLOCKS_PER_SEC;
+
+    total_turn_time += turn_time;
+    total_resp_time += resp_time;
+
+    if (completed_threads > 0) {
+        avg_resp_time = (double) total_resp_time / completed_threads; // Cast to double for accurate division
+        avg_turn_time = (double) total_turn_time / completed_threads; // Cast to double for accurate division
+    }
 
     // De-allocate the stack memory allocated during thread creation
     if (current_thread->stack) {
@@ -733,7 +789,9 @@ static void schedule() {
 // - schedule policy
 #ifndef MLFQ
 	// Choose PSJF
+    //printQueue(&mlfq_queues[HIGH_PRIO]); // check queue before 
     sched_psjf();
+    //printQueue(&mlfq_queues[HIGH_PRIO]); //check queue after
 #else 
 	// Choose MLFQ
     sched_mlfq();
@@ -752,7 +810,10 @@ static void schedule() {
 
             // Start the timer for the thread's execution
             start_timer();
-            swapcontext(&scheduler_context, &current_thread->context);
+            if(swapcontext(&scheduler_context, &current_thread->context) < 0){
+                perror("Error in schedule()");
+                exit(1);
+            }
 
             // Increment the elapsed time AFTER the context switch
             current_thread->elapsed++;
