@@ -11,6 +11,8 @@
 // PARALLEL_CAL ALSO (VERY RARELY) ONLY PRINTS RUNTIME AND GETS STUCK. IF THAT HAPEPNS JSUT CTRL C AND THEN RUN AGAIN. VERY, VERY RARELY HAPPENS
 // EXTREMELY RARE INSTANCE
 
+//IF YOU GET ERROR WHEN RUNNING EXTERNAL_CAL THAT "Error: current thread is not the owner of the mutex.", CTRL C AND RUN IT AGAIN. VERY RARE
+
 //Global counter for total context switches and 
 //average turn around and response time
 long tot_cntx_switches=0;

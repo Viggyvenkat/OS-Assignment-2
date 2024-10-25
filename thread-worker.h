@@ -115,10 +115,6 @@ typedef struct worker_mutex_t {
 // initialize scheduler_context to point to schedule() [Solution to segmentation fault issue]
 int setup_scheduler_context();
 
-//Enqueue helpers 
-void initialize_queue(Queue* queue, tcb* new_thread);
-void append_to_queue(Queue* queue, tcb* new_thread);
-
 //add a thread to the queue
 void Enqueue(Queue *queue, tcb* thread);
 
