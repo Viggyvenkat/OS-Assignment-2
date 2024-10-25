@@ -51,7 +51,7 @@ static void sched_mlfq();
 int setup_scheduler_context(){
 
     //precent memory leaks 
-    static int initialized = 0; // Static flag to check if the function has already been called
+    static int initialized = 0; // Check if the function has already been called
 
     if (initialized) {
         // If the function was already called, return without doing anything
@@ -60,17 +60,21 @@ int setup_scheduler_context(){
 
     initialized = 1; // Set the flag to indicate the function has been called
 
+    //current context for scheduler
     if (getcontext(&scheduler_context) == -1) {
         perror("Failed to get context for scheduler");
         exit(EXIT_FAILURE);
     }
 
+    //Mem for scheduler stack
     void* stack = malloc(STACK_SIZE);
     if (stack == NULL) {
         perror("Failed to allocate stack for scheduler");
         return -1;
     }
 
+    //from the sample code
+    //setup context stack and properties for scheduler
     scheduler_context.uc_stack.ss_sp = stack;
     scheduler_context.uc_stack.ss_size = STACK_SIZE;
     scheduler_context.uc_link = NULL;
@@ -81,12 +85,14 @@ int setup_scheduler_context(){
     
     timer_setup();
 
-     if (getcontext(&main_context) == -1) {
+    //current context for main thread
+    if (getcontext(&main_context) == -1) {
         perror("Failed to get context for main");
         free(stack); 
         return -1;
     }
 
+    //allocate memory for the primary TCB
     tcb* primaryTCB = malloc(sizeof(tcb));
     if (primaryTCB == NULL) {
         perror("Failed to allocate memory for primaryTCB");
@@ -94,23 +100,27 @@ int setup_scheduler_context(){
         return -1;
     }
 
-    //can i initialize these outside at the start?
+    //can i initialize these properites outside at the start?
     primaryTCB->thread_id = thread_count++;
-    primaryTCB->status = READY;
-    primaryTCB->priority = HIGH_PRIO;
+    primaryTCB->status = READY; //default status
+    primaryTCB->priority = HIGH_PRIO; //default prio
     //printf("setup_scheduler_context: Primary thread initialized with priority level %d (HIGH_PRIO)\n", primaryTCB->priority);
     primaryTCB->queue_time = clock(); //USE FOR METRICS VIGNESH
     primaryTCB->elapsed = 0; //VIGNESH, THIS IS FOR PROMOTION/DEMOTION. CAN MAYBE USE FOR METRICS BUT THAT'S ITS MAIN USE
     primaryTCB->next = NULL;
    
-    
+
+   //keep track of total context switch count throughout
+    tot_cntx_switches++;
+
     //enqueue primaryTCB to the hihgest priority queue (default)
     enqueue(&mlfq_queues[HIGH_PRIO], primaryTCB);
     //debug: print the queue (just to check)
     //print_Queue(&mlfq_queues[HIGH_PRIO]);
     
-    tot_cntx_switches++;
+    
 
+    //switch context to the scheduler
     if (swapcontext(&primaryTCB->context, &scheduler_context) == -1) {
         perror("Failed to swap context to scheduler");
         free(stack);
@@ -172,10 +182,11 @@ void enqueue(Queue* queue, tcb* thread) {
         fprintf(stderr, "Error: enqueue.\n");
         return;
     }
-
+    //queue is empty
     if (queue->rear == NULL) {
         queue->head = queue->rear = thread;
     } else {
+        //queue isn't empty so add to the rear
         queue->rear->next = thread;
         queue->rear = thread;
     }
@@ -189,15 +200,19 @@ tcb* dequeue(Queue* queue) {
         fprintf(stderr, "Error: dequeue.\n");
         return NULL;
     }
+
     tcb* current_thread = queue->head;
     if (current_thread == NULL) {
         return NULL;
     }
+
     queue->head = current_thread->next;
+    //if the queue is empty after removing the thread
     if (queue->head == NULL){
         queue->rear = NULL;
     }
 
+    //detach the current head from the queue
     current_thread->next = NULL;
     return current_thread;
 }
@@ -229,12 +244,13 @@ tcb* dequeue_psjf(Queue* queue) {
 
     // Remove the shortest_thread from the queue
     if (previous_shortest == NULL) {
-        // The shortest thread is at the head of the queue
-        queue->head = shortest_thread->next;
+        queue->head = shortest_thread->next; //shortest thread is at the head
+        //if the queue is now empty after removal
         if (queue->head == NULL) {
             queue->rear = NULL; 
         }
     } else {
+        //shortest thread isn't at the head, so link previous thread to the next one
         previous_shortest->next = shortest_thread->next;
         if (shortest_thread == queue->rear) {
             queue->rear = previous_shortest;
@@ -251,8 +267,9 @@ tcb* dequeue_psjf(Queue* queue) {
 //Dequeues the highest priority thread for MLFQ
 //Call in sched_mlfq()
 void dequeue_mlfq() {
+    //Start from HIGH_PRIO (3) to LOW_PRIO (O)
     for (int i = HIGH_PRIO; i >= LOW_PRIO; i++) {
-        if ((current_thread = dequeue(&mlfq_queues[i])) != NULL) {
+        if ((current_thread = dequeue(&mlfq_queues[i])) != NULL) { //dequeue from the current priority level
             return;
         }
     }
@@ -338,7 +355,7 @@ void refresh_mlfq() {
         thread = thread->next;
     }
 
-    //Previous errors stemmed from iterating from the lowest to the highest
+    
     //Highest is default so led to infinite loop
     // Iterate between the second highest and the lowest priorities
     for (int i = MEDIUM_PRIO; i >= LOW_PRIO; i--) {
@@ -475,19 +492,21 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
         
            
         
-        //Carry over 
+        //Carry over
+        //Allocate memory for the new thread's TCB  
         tcb* new_thread = malloc(sizeof(tcb));
         if (new_thread == NULL) {
             perror("Error: Failed to allocate memory for TCB in worker_create");
             exit(1);
         }
 
+        //get context for the new thread
         if (getcontext(&new_thread->context) == -1) {
             perror("Error: getcontext failed in worker_create"); //more specific debugs
             exit(1);
         }  
 
-        //Stack is now a void 
+        //Allocate mem for the new therad's stack
         void* stack = malloc(STACK_SIZE);
         if (stack == NULL) {
             perror("Failed to allocate memory for the stack"); //DEBUG
@@ -501,19 +520,21 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
         new_thread->context.uc_stack.ss_flags = 0;
         new_thread->stack = stack;
 
-        //get the other stuff ready
+        //get the other stuff ready; initialize the TCB stuff
         new_thread->thread_id = thread_count; //map ID to the thread #
         *thread = new_thread->thread_id;
         //Initialize status
         new_thread->status = READY;
         //start off at the highest priority
-        new_thread->priority = HIGH_PRIO; 
+        new_thread->priority = HIGH_PRIO; //default priority for both MLFQ and PSJF
         //+1 thread
         thread_count++;
         //printf("worker_create: Thread ID %d initialized with priority level %d (HIGH_PRIO)\n", new_thread->thread_id, new_thread->priority);
-        new_thread->elapsed = 0;
+        new_thread->elapsed = 0; //incriment throughout
         new_thread->next = NULL;
         new_thread->queue_time = clock();
+
+        //Set up the function the thread will run and pass the argument
         makecontext(&new_thread->context, (void*)function, 1, arg);
 
 
@@ -745,9 +766,8 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
         return -1;
     }
 
+    //Remove a thread from the blocked list, then release the lock
     dequeue_blocked();
-
-    // Release the lock
     mutex->locked = 0;
     mutex->owner = NULL;
 	return 0;

@@ -63,11 +63,11 @@ typedef struct TCB {
 	// YOUR CODE HERE
 	worker_t thread_id; 
     thread_state_t status; 
-    ucontext_t context; 
+    ucontext_t context;
+    int priority;  
     void* stack; 
-    int priority; 
-    int elapsed; //use for promotion/demotion
     void* return_value; 
+    int elapsed; //use for promotion/demotion
     struct TCB* next; 
     struct TCB* blocked_list; //may not be necessary with the block_queue
     clock_t queue_time; //use for metrics that're needed 
