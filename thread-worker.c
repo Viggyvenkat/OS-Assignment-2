@@ -193,7 +193,7 @@ void Enqueue(Queue* queue, tcb* thread) {
     thread->next = NULL;
 }
 
-//basic Dequeue function just with a queue now
+//basic dequeue function just with a queue now
 tcb* Dequeue(Queue* queue) {
     //error check
     if (queue == NULL) {
