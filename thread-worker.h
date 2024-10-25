@@ -118,9 +118,6 @@ int setup_scheduler_context();
 //add a thread to the queue
 void Enqueue(Queue *queue, tcb* thread);
 
-//Dequeue helper:
-tcb* remove_head(Queue* queue);
-
 //Remove a thread from a queue
 tcb* Dequeue(Queue* queue);
 
