@@ -116,22 +116,22 @@ typedef struct worker_mutex_t {
 int setup_scheduler_context();
 
 //add a thread to the queue
-void enqueue(Queue *queue, tcb* thread);
+void Enqueue(Queue *queue, tcb* thread);
 
 //Remove a thread from a queue
-tcb* dequeue(Queue* queue);
+tcb* Dequeue(Queue* queue);
 
 //clean reset to the highest priority (default)
-void refresh_mlfq();
+void Refresh_mlfq();
 
 //Remove thread (MLFQ)
-void dequeue_mlfq();
+void Dequeue_mlfq();
 
 //Remove thread (for PSJF)
-tcb* dequeue_psjf(Queue* queue);
+tcb* Dequeue_psjf(Queue* queue);
 
 // Removes thread from blocked queue 
-void dequeue_blocked();
+void Dequeue_blocked();
 
 //Search a specific queue for a specific thread 
 //Similar to the other find_thread_by_id just that it checks a queue instead of a list
