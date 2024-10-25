@@ -113,7 +113,7 @@ int setup_scheduler_context(){
    //keep track of total context switch count throughout
     tot_cntx_switches++;
 
-    //Enqueue primaryTCB to the hihgest priority queue (default)
+    //Add primaryTCB to the hihgest priority queue (default)
     Enqueue(&mlfq_queues[HIGH_PRIO], primaryTCB);
     //debug: print the queue (just to check)
     //print_Queue(&mlfq_queues[HIGH_PRIO]);
@@ -174,7 +174,7 @@ void timer_setup() {
 }
 
 
-//basic Enqueue just iwth queue now instead of list
+//basic enqueue just iwth queue now instead of list
 //Used for both PSJF and MLFQ
 void Enqueue(Queue* queue, tcb* thread) {
     //error check
@@ -217,8 +217,8 @@ tcb* Dequeue(Queue* queue) {
     return current_thread;
 }
 
-//Added a Dequeue for PSJF specifically. Think it was causing issues before using 1 Dequeue
-//Finds the thread with the shortest elapsed time and Dequeues it
+//Added a dequeue for PSJF specifically. Think it was causing issues before using 1 
+//Finds the thread with the shortest elapsed time and dequeues it
 //Called in sched_psjf. convenient to have a seperate one for psjf
 tcb* Dequeue_psjf(Queue* queue) {
     if (queue->head == NULL || queue == NULL) {
@@ -263,7 +263,7 @@ tcb* Dequeue_psjf(Queue* queue) {
     return shortest_thread;
 }
 
-//Dequeue for mlfq. Adjusted for queue. Much simpler
+//dequeue for mlfq. Adjusted for queue. Much simpler
 //Dequeues the highest priority thread for MLFQ
 //Call in sched_mlfq()
 void Dequeue_mlfq() {
@@ -276,7 +276,7 @@ void Dequeue_mlfq() {
     
 }
 
-//Dequeue from the blockQueue
+//dequeue from the blockQueue
 //Old list implementation had issues; Overly complicated
 void Dequeue_blocked() {
     //error check
@@ -286,7 +286,7 @@ void Dequeue_blocked() {
         return NULL;
     }
     */
-    //Dequeue the thread from the blockQueue
+    //dequeue the thread from the blockQueue
     tcb* unblocked_thread = Dequeue(&blockQueue);
 
     if (unblocked_thread != NULL) {
@@ -861,7 +861,7 @@ static void schedule() {
 
                 //MLFQ
                 Enqueue(&mlfq_queues[current_thread->priority], current_thread);
-    #endif
+    #endif  //account for blocked or finished threads
             } else if (current_thread->status == BLOCKED) {
                 Enqueue(&blockQueue, current_thread);
             } else if (current_thread->status == FINISHED) {
@@ -893,8 +893,8 @@ static void sched_mlfq() {
 
 	// YOUR CODE HERE
 
-    //just call Dequeue. It'll Dequeue the next thread
-    // Far less omplicated than previous implementation
+    //just call dequeue. It'll remove the next thread for removal
+    // Far less complicated than previous implementation
     Dequeue_mlfq();
 
     //Check for custom testing, not really needed for benchmark
@@ -933,7 +933,7 @@ static void sched_mlfq() {
                     // Debug statement to print the new priority
                     printf("Thread ID %d promoted to priority level: %d\n", aging_thread->thread_id, aging_thread->priority);
                     
-                    // Re-Enqueue thread.
+                    // Re-add thread.
                     Enqueue(&mlfq_queues[aging_thread->priority], aging_thread);
                     aging_thread = next_thread;
                 } else {
