@@ -24,21 +24,20 @@ double avg_resp_time=0;
 // YOUR CODE HERE
 
 
+//Timer 
+struct itimerval timer;
 int thread_count = 0;
 //scheduler context
 ucontext_t scheduler_context;
-ucontext_t benchmark;
 //thread creation context
 ucontext_t main_context;
-//Timer 
-struct itimerval timer;
 tcb* current_thread = NULL;
-//new Queues, no longer lists
-Queue blockQueue; 
-Queue finishedQueue;
 //The queues for MLFQ &PSJF. 4 (defined in .h remember)
 //No more seperate for MLFQ and PSJF. PSJF is in the HIGH_PRIO queue
-Queue mlfq_queues[NUMPRIO];
+Queue queues[NUMPRIO];
+//new Queues, no longer lists
+Queue BLOCKED_Queue; 
+Queue FINISHED_Queue;
 int elapsed = 0; //needed for MLFQ
 int TIME_SLICE_PER_LEVEL[NUMPRIO] = {5, 10, 15, 20}; // 5 = LOW_PRIO, 20 = HIGH_PRIO
 int completed_threads;
@@ -121,9 +120,9 @@ int setup_scheduler_context(){
     tot_cntx_switches++;
 
     //Add primaryTCB to the hihgest priority queue (default)
-    Enqueue(&mlfq_queues[HIGH_PRIO], primaryTCB);
+    Enqueue(&queues[HIGH_PRIO], primaryTCB);
     //debug: print the queue (just to check)
-    //print_Queue(&mlfq_queues[HIGH_PRIO]);
+    //print_Queue(&queues[HIGH_PRIO]);
     
     
 
@@ -303,7 +302,7 @@ void Dequeue_mlfq() {
     //Start from HIGH_PRIO (3) to LOW_PRIO (O)
     for (int i = HIGH_PRIO; i >= LOW_PRIO; i++) {
         //find the highest priority thread
-        tcb* thread = Dequeue(&mlfq_queues[i]);
+        tcb* thread = Dequeue(&queues[i]);
         if(thread!=NULL){
             current_thread = thread;
             break;
@@ -312,24 +311,24 @@ void Dequeue_mlfq() {
     
 }
 
-//dequeue from the blockQueue
+//dequeue from the BLOCKED_Queue
 //Old list implementation had issues; Overly complicated
 void Dequeue_blocked() {
     //error check
     /*
-    if (&blockQueue == NULL) {
-        fprintf(stderr, "Error: blockQueue is NULL in Dequeue_blocked.\n");
+    if (&BLOCKED_Queue == NULL) {
+        fprintf(stderr, "Error: BLOCKED_Queue is NULL in Dequeue_blocked.\n");
         return NULL;
     }
     */
-    //dequeue the thread from the blockQueue
-    tcb* unblocked_thread = Dequeue(&blockQueue);
+    //dequeue the thread from the BLOCKED_Queue
+    tcb* unblocked_thread = Dequeue(&BLOCKED_Queue);
 
     if (unblocked_thread != NULL) {
         unblocked_thread->status = READY;
         // Reset priority once it's nblocked 
         unblocked_thread->priority = HIGH_PRIO;
-        Enqueue(&mlfq_queues[unblocked_thread->priority], unblocked_thread);
+        Enqueue(&queues[unblocked_thread->priority], unblocked_thread);
     }
     /*else{
         fprintf(stderr, "Error in Dequeue_blocked");
@@ -348,14 +347,14 @@ void print_Queue(Queue* queue) {
     tcb* temp = queue->head;
 
     // Determine the queue type
-    if (queue == &blockQueue) {
+    if (queue == &BLOCKED_Queue) {
         printf("Contents of Blocked Queue:\n");
-    } else if (queue == &finishedQueue) {
+    } else if (queue == &FINISHED_Queue) {
         printf("Contents of Finished Queue:\n");
     } else {
-        // Assuming queue is one of the mlfq_queues
+        // Assuming queue is one of the queues
         for (int i = 0; i < NUMPRIO; i++) {
-            if (queue == &mlfq_queues[i]) {
+            if (queue == &queues[i]) {
                 printf("Contents of MLFQ Level %d:\n", i);
                 break;
             }
@@ -386,12 +385,12 @@ void Refresh_mlfq() {
 
 
     tcb* thread;
-    // same resetting but in the blockQueue
+    // same resetting but in the BLOCKED_Queue
     // resetting priority
-    thread = blockQueue.head;
+    thread = BLOCKED_Queue.head;
     while (thread != NULL) {
         thread->priority = HIGH_PRIO;
-        //printf("Refresh_mlfq: Thread ID %d in blockQueue reset to priority level %d (HIGH_PRIO)\n", thread->thread_id, thread->priority);
+        //printf("Refresh_mlfq: Thread ID %d in BLOCKED_Queue reset to priority level %d (HIGH_PRIO)\n", thread->thread_id, thread->priority);
         thread = thread->next;
     }
 
@@ -399,10 +398,10 @@ void Refresh_mlfq() {
     //Highest is default so led to infinite loop
     // Iterate between the second highest and the lowest priorities
     for (int i = MEDIUM_PRIO; i >= LOW_PRIO; i--) {
-        while ((thread = Dequeue(&mlfq_queues[i])) != NULL) {
+        while ((thread = Dequeue(&queues[i])) != NULL) {
             thread->priority = HIGH_PRIO;
             //printf("Refresh_mlfq: Thread ID %d moved from queue %d to priority level %d (HIGH_PRIO)\n", thread->thread_id, i, thread->priority);
-            Enqueue(&mlfq_queues[HIGH_PRIO], thread);
+            Enqueue(&queues[HIGH_PRIO], thread);
         }
     }
 }
@@ -428,7 +427,7 @@ static void ring(int signum) {
     if (elapsed >= AGING_THRESHOLD) {
         elapsed = 0; //reset back to 0 and start again
         Refresh_mlfq(); //starvation solved
-        //print_Queue(&mlfq_queues[current_thread->priority]);
+        //print_Queue(&queues[current_thread->priority]);
     }
 #endif
 
@@ -467,19 +466,19 @@ static tcb* find_thread_by_id(worker_t thread, Queue* queue) {
 static tcb* find_thread_by_id_all_queues(worker_t thread) {
     // Search the MLFQ queues 
     for (int i = 0; i < NUMPRIO; i++) {
-        tcb* found_thread = find_thread_by_id(thread, &mlfq_queues[i]);
+        tcb* found_thread = find_thread_by_id(thread, &queues[i]);
         if (found_thread) {
             return found_thread;
         }
     }
     // Search the blocked and finished queues
     // Use find_thread_by_id to search specific queues
-    tcb* found_thread = find_thread_by_id(thread, &blockQueue);
+    tcb* found_thread = find_thread_by_id(thread, &BLOCKED_Queue);
     if (found_thread) {
         return found_thread;
     }
 
-    found_thread = find_thread_by_id(thread, &finishedQueue);
+    found_thread = find_thread_by_id(thread, &FINISHED_Queue);
     if (found_thread) {
         return found_thread;
     }
@@ -494,7 +493,7 @@ int theQueueisEmpty() {
 #ifndef MLFQ //psjf is being used
 
     //Check only if the highest priority queue is empty
-    if (mlfq_queues[HIGH_PRIO].head == NULL) {
+    if (queues[HIGH_PRIO].head == NULL) {
         return 1; // Queue is empty
     }
     return 0; 
@@ -502,7 +501,7 @@ int theQueueisEmpty() {
 
     // Iterate through ALL MLFQ levels to check if any queue has threads
     for (int i = 0; i < NUMPRIO; i++) {
-        if (mlfq_queues[i].head != NULL) {
+        if (queues[i].head != NULL) {
             return 0; // At least one queue is not empty
         }
     }
@@ -560,6 +559,7 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
         new_thread->context.uc_stack.ss_flags = 0;
         new_thread->stack = stack;
 
+
         //get the other stuff ready; initialize the TCB stuff
         new_thread->thread_id = thread_count; //map ID to the thread #
         *thread = new_thread->thread_id;
@@ -579,8 +579,8 @@ int worker_create(worker_t * thread, pthread_attr_t * attr,
 
 
         //Add the new thread
-        Enqueue(&mlfq_queues[new_thread->priority], new_thread);
-        //print_Queue(&mlfq_queues[new_thread->priority]);
+        Enqueue(&queues[new_thread->priority], new_thread);
+        //print_Queue(&queues[new_thread->priority]);
 
        
 
@@ -779,7 +779,10 @@ int worker_mutex_lock(worker_mutex_t *mutex) {
            //fprintf(stderr, "Context switch occurred. Total switches: %ld\n", tot_cntx_switches); 
             
 
-            swapcontext(&current_thread->context, &scheduler_context);
+            if (swapcontext(&current_thread->context, &scheduler_context) == -1) {
+                perror("Error: swapcontext failure in ring function");
+                exit(EXIT_FAILURE);
+            }
         }
 
         mutex->owner = current_thread;
@@ -806,7 +809,7 @@ int worker_mutex_unlock(worker_mutex_t *mutex) {
         return -1;
     }
 
-    //Remove a thread from the blocked list, then release the lock
+     // Move a thread from the blocked list to the run queue, then release the lock
     Dequeue_blocked();
     mutex->locked = 0;
     mutex->owner = NULL;
@@ -859,9 +862,9 @@ static void schedule() {
 // - schedule policy
 #ifndef MLFQ
 	// Choose PSJF
-    //print_Queue(&mlfq_queues[HIGH_PRIO]); // check queue before 
+    //print_Queue(&queues[HIGH_PRIO]); // check queue before 
     sched_psjf();
-    //print_Queue(&mlfq_queues[HIGH_PRIO]); //check queue after
+    //print_Queue(&queues[HIGH_PRIO]); //check queue after
 #else 
 	// Choose MLFQ
     sched_mlfq();
@@ -896,16 +899,16 @@ static void schedule() {
     #ifndef MLFQ
 
                 //PSJF
-                Enqueue(&mlfq_queues[HIGH_PRIO], current_thread); 
+                Enqueue(&queues[HIGH_PRIO], current_thread); 
     #else       
 
                 //MLFQ
-                Enqueue(&mlfq_queues[current_thread->priority], current_thread);
+                Enqueue(&queues[current_thread->priority], current_thread);
     #endif  //account for blocked or finished threads
             } else if (current_thread->status == BLOCKED) {
-                Enqueue(&blockQueue, current_thread);
+                Enqueue(&BLOCKED_Queue, current_thread);
             } else if (current_thread->status == FINISHED) {
-                Enqueue(&finishedQueue, current_thread);
+                Enqueue(&FINISHED_Queue, current_thread);
             }
         }
     }
@@ -921,7 +924,7 @@ static void sched_psjf() {
 
     //i kept psjf in the highest priority
     //easier than having 2 
-    current_thread = Dequeue_psjf(&mlfq_queues[HIGH_PRIO]);
+    current_thread = Dequeue_psjf(&queues[HIGH_PRIO]);
     
 }
 
@@ -959,12 +962,12 @@ static void sched_mlfq() {
         /*
         // Promote threads that have been waiting too long (aging mechanism).
         for (int i = 1; i < NUMPRIO; i++) {
-            tcb* aging_thread = mlfq_queues[i].head;
+            tcb* aging_thread = queues[i].head;
             while (aging_thread != NULL) {
                 if (clock() - aging_thread->queue_time >= AGING_THRESHOLD) {
                     // Remove thread from current priority queue.
                     tcb* next_thread = aging_thread->next;
-                    Dequeue(&mlfq_queues[aging_thread->priority]);
+                    Dequeue(&queues[aging_thread->priority]);
                     
                     // Promote thread to the next higher priority level.
                     aging_thread->priority++;
@@ -974,7 +977,7 @@ static void sched_mlfq() {
                     printf("Thread ID %d promoted to priority level: %d\n", aging_thread->thread_id, aging_thread->priority);
                     
                     // Re-add thread.
-                    Enqueue(&mlfq_queues[aging_thread->priority], aging_thread);
+                    Enqueue(&queues[aging_thread->priority], aging_thread);
                     aging_thread = next_thread;
                 } else {
                     aging_thread = aging_thread->next;
